@@ -188,13 +188,13 @@ def chat_api():
     else:
         user_states[user_ip] = ""
         
-        # Самая популярная и стабильная модель Qwen / DeepSeek на OpenRouter
+        # Запрос к DeepSeek R1 (бесплатная)
         payload = {
-            "model": "qwen/qwen-2.5-7b-instruct:free",
+            "model": "deepseek/deepseek-r1:free",
             "messages": [
                 {
                     "role": "system", 
-                    "content": "Ты MaxGPT — настоящий живой ИИ. Отвечай пользователю прямо на русском языке, содержательно и с умом."
+                    "content": "Ты MaxGPT — настоящий живой ИИ. Отвечай пользователю на русском языке, умно, четко и развернуто."
                 },
                 {"role": "user", "content": user_msg}
             ]
@@ -213,7 +213,7 @@ def chat_api():
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=20) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 if "choices" in res and len(res["choices"]) > 0:
                     reply = res["choices"][0]["message"]["content"]
