@@ -188,44 +188,30 @@ def chat_api():
     else:
         user_states[user_ip] = ""
         
-        # Запрос к Mistral Small 24B
+        # Полностью бесплатный и вечный API от Pollinations (OpenAI-compatible)
         payload = {
-            "model": "mistralai/mistral-small-24b-instruct-2501:free",
+            "model": "openai",
             "messages": [
                 {
                     "role": "system", 
-                    "content": "Ты MaxGPT — настоящий живой ИИ. Отвечай пользователю на русском языке, умно, четко и развернуто."
+                    "content": "Ты MaxGPT — умный ИИ. Отвечай прямо, коротко и по делу на русском языке."
                 },
                 {"role": "user", "content": user_msg}
             ]
         }
         
         req = urllib.request.Request(
-            "https://openrouter.ai/api/v1/chat/completions",
+            "https://text.pollinations.ai/",
             data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Bearer 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",
-                "HTTP-Referer": "https://maxgpt-bot.onrender.com",
-                "X-Title": "MaxGPT"
-            },
+            headers={"Content-Type": "application/json"},
             method="POST"
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=25) as resp:
-                res = json.loads(resp.read().decode("utf-8"))
-                if "choices" in res and len(res["choices"]) > 0:
-                    reply = res["choices"][0]["message"]["content"]
-                elif "error" in res:
-                    reply = f"Ошибка OpenRouter: {res['error'].get('message', 'Неизвестно')}"
-                else:
-                    reply = f"Ответ от API без текста: {json.dumps(res)}"
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8")
-            reply = f"Ошибка сервера OpenRouter ({e.code}): {err_body}"
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                reply = resp.read().decode("utf-8")
         except Exception as e:
-            reply = f"Ошибка подключения: {str(e)}"
+            reply = f"Ошибка сети: {str(e)}"
 
     chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})
     return jsonify({"reply": reply})
