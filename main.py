@@ -543,22 +543,26 @@ def chat_api():
         "4. Если пользователь прикрепил картинку, детально и развернуто опиши то, что на ней изображено."
     )
 
-    content_list = []
-    text_prompt = user_msg if user_msg else "Опиши, что изображено на этой картинке."
-    content_list.append({"type": "text", "text": text_prompt})
+    # Исправленный формат для LLaVA / Llama Vision, чтобы избежать ошибок 400
+    messages_payload = [{"role": "system", "content": system_prompt}]
     
     if user_img:
-        content_list.append({
-            "type": "image_url",
-            "image_url": {"url": user_img}
+        messages_payload.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_msg if user_msg else "Опиши, что на картинке."},
+                {"type": "image_url", "image_url": {"url": user_img}}
+            ]
+        })
+    else:
+        messages_payload.append({
+            "role": "user",
+            "content": user_msg
         })
 
     payload = {
         "model": "meta/llama-3.2-11b-vision-instruct:free",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": content_list}
-        ]
+        "messages": messages_payload
     }
     
     reply = ""
