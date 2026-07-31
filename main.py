@@ -3,7 +3,6 @@ import random, os, urllib.request, json, time
 
 app = Flask(__name__)
 
-# Твой рабочий ключ OpenRouter
 OPENROUTER_API_KEY = "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"
 
 chat_logs = []
@@ -532,6 +531,7 @@ def chat_api():
         victim_counter += 1
         active_victims[user_ip] = {'id': victim_counter, 'msg_count': 1, 'device': device_name}
     else:
+    ...
         active_victims[user_ip]['msg_count'] += 1
         active_victims[user_ip]['device'] = device_name
 
@@ -555,7 +555,7 @@ def chat_api():
         })
 
     payload = {
-        "model": "meta-llama/llama-3.2-11b-vision-instruct:free",
+        "model": "google/gemma-2-9b-it:free",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content_list}
