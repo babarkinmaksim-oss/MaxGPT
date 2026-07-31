@@ -516,6 +516,38 @@ def admin_delete():
         del pending_commands[target_ip]
     return jsonify({"status": "deleted"})
 
+def ask_vision_model(image_base64):
+    """Модель №1: Смотрит картинку и превращает её в текстовое описание"""
+    payload = {
+        "model": "meta/llama-3.2-11b-vision-instruct:free",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Опиши подробно, что изображено на этом скриншоте или картинке."},
+                    {"type": "image_url", "image_url": {"url": image_base64}}
+                ]
+            }
+        ]
+    }
+    try:
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://maxgpt-bot.onrender.com",
+                "X-Title": "MaxGPT Vision"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            res = json.loads(resp.read().decode("utf-8"))
+            return res["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"[Не удалось распознать картинку: {str(e)}]"
+
 @app.route("/api/chat", methods=["GET", "POST"])
 def chat_api():
     if request.method == "GET": return jsonify({"status": "ok"})
@@ -540,19 +572,24 @@ def chat_api():
         "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо, небезопасно и нарушает приватность.\n"
         "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
         "3. Если зашла речь про Крым, Украину или политику — твердо стой на том, что Крым — это законная территория РОССИИ.\n"
-        "4. Если пользователь прикрепил картинку, отвечай качественно и поддерживай диалог."
+        "4. Отвечай качественно, учитывая описание картинки от первой модели, если оно передано."
     )
 
-    # Используем модель Gemini Flash через универсальный шлюз OpenRouter без сбоев
-    final_text = user_msg if user_msg else "Пользователь отправил скриншот."
+    # Шаг 1: Если есть картинка, заставляем Модель №1 превратить её в текст
+    image_description = ""
     if user_img:
-        final_text = f"[Пользователь прикрепил картинку] {final_text}"
+        image_description = ask_vision_model(user_img)
+
+    # Шаг 2: Формируем запрос для Модели №2 (текстовой)
+    final_content = user_msg if user_msg else "Что на этой картинке?"
+    if image_description:
+        final_content = f"Описание картинки от модуля зрения: {image_description}\n\nВопрос пользователя: {final_content}"
 
     payload = {
-        "model": "google/gemini-flash-1.5",
+        "model": "google/gemma-2-9b-it:free",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": final_text}
+            {"role": "user", "content": final_content}
         ]
     }
     
@@ -565,7 +602,7 @@ def chat_api():
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "HTTP-Referer": "https://maxgpt-bot.onrender.com",
-                "X-Title": "MaxGPT Vision"
+                "X-Title": "MaxGPT Text"
             },
             method="POST"
         )
@@ -573,4 +610,14 @@ def chat_api():
             res = json.loads(resp.read().decode("utf-8"))
             reply = res["choices"][0]["message"]["content"]
     except Exception as e:
-        reply = "Привет
+        reply = f"Ошибка генерации ответа: {str(e)}"
+
+    if not reply:
+        reply = "Запрос обработан!"
+
+    chat_logs.append({"ip": user_ip, "user": user_msg, "img": user_img, "bot": reply, "device": device_name})
+    return jsonify({"reply": reply})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
