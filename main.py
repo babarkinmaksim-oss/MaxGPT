@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string
-import random, os, urllib.request, json, time
+import random, os, urllib.request, json, time, base64
 
 app = Flask(__name__)
 
@@ -30,26 +30,8 @@ HTML_PAGE = """<!DOCTYPE html>
         .hist-item:hover { background: rgba(255, 255, 255, 0.04); }
         
         .user-info { padding: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 12px; font-size: 13px; color: #ececf1; background: rgba(0,0,0,0.2); border-radius: 10px; }
-        
         .user-av-sq { width: 36px; height: 36px; border-radius: 8px; background: #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; }
-        
-        .max-av-sq { 
-            width: 38px; 
-            height: 38px; 
-            border-radius: 9px; 
-            background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #c084fc 80%, #ffffff 100%); 
-            color: #ffffff; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-weight: 900; 
-            font-size: 12px; 
-            letter-spacing: 0.5px;
-            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.45); 
-            border: 1px solid rgba(255, 255, 255, 0.4); 
-            flex-shrink: 0; 
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); 
-        }
+        .max-av-sq { width: 38px; height: 38px; border-radius: 9px; background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #c084fc 80%, #ffffff 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.45); border: 1px solid rgba(255, 255, 255, 0.4); flex-shrink: 0; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); }
 
         .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: #131417; }
         .top-bar { height: 60px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(19, 20, 23, 0.8); backdrop-filter: blur(10px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10; }
@@ -76,19 +58,25 @@ HTML_PAGE = """<!DOCTYPE html>
         .bot-author { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
         .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: #e2e8f0; letter-spacing: 0.2px; }
-
-        .sys-status { font-size: 12px; color: #f87171; margin-top: 8px; display: flex; align-items: center; gap: 6px; font-weight: 600; background: rgba(239, 68, 68, 0.1); padding: 6px 10px; border-radius: 6px; border-left: 3px solid #ef4444; width: fit-content; }
-        .warn { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.15); }
+        .chat-img { max-width: 250px; border-radius: 8px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.2); }
 
         .input-area { padding: 16px 22% 24px; background: #131417; }
-        .input-wrap { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 12px 16px; display: flex; gap: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: 0.2s ease; }
+        .input-wrap { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: 0.2s ease; }
         .input-wrap:focus-within { border-color: #8b5cf6; box-shadow: 0 8px 30px rgba(139, 92, 246, 0.25); }
+        .input-row { display: flex; gap: 12px; align-items: center; }
         textarea { flex: 1; background: none; border: none; color: #fff; outline: none; resize: none; height: 26px; font-size: 15px; line-height: 26px; }
         textarea::placeholder { color: #64748b; }
         
+        .attach-btn { background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; padding: 4px; transition: 0.2s; }
+        .attach-btn:hover { color: #8b5cf6; }
+
         .send-btn { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; border: none; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4); }
         .send-btn:hover { transform: scale(1.05); filter: brightness(1.1); }
         .disclaimer { font-size: 11.5px; color: #64748b; text-align: center; margin-top: 10px; font-weight: 500; }
+
+        .preview-box { display: none; position: relative; width: fit-content; margin-bottom: 4px; }
+        .preview-box img { max-height: 70px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); }
+        .preview-box .close-btn { position: absolute; top: -6px; right: -6px; background: #ef4444; color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
         .fake-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e2029; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 14px; padding: 18px 22px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); z-index: 9999; width: 380px; backdrop-filter: blur(20px); animation: slideDown 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
         @keyframes slideDown { from { top: -100px; opacity: 0; } to { top: 20px; opacity: 1; } }
@@ -139,17 +127,20 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="top-bar">
         <div class="model-dropdown">
             <div class="model-btn" onclick="toggleModelMenu()">
-                <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
-                <span id="selectedModel">MaxGPT 4.0 Ultra</span>
+                <i class="fa-solid fa-eye" style="color:#8b5cf6;"></i>
+                <span id="selectedModel">MaxGPT 4.0 (Vision & Text)</span>
                 <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
             </div>
             <div class="model-menu" id="modelMenu">
-                <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Ultra')">
-                    <span><b>MaxGPT 4.0 Ultra</b></span>
+                <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 (Vision & Text)', 'all')">
+                    <span><b>MaxGPT 4.0 Dual</b></span>
                     <i class="fa-solid fa-check"></i>
                 </div>
-                <div class="model-option" onclick="selectModel('MaxGPT 3.5 Turbo')">
-                    <span><b>MaxGPT 3.5 Turbo</b></span>
+                <div class="model-option" onclick="selectModel('MaxGPT Text (Llama 3.3)', 'text')">
+                    <span><b>MaxGPT Text Only</b></span>
+                </div>
+                <div class="model-option" onclick="selectModel('MaxGPT Vision (Llama 3.2)', 'vision')">
+                    <span><b>MaxGPT Vision Only</b></span>
                 </div>
             </div>
         </div>
@@ -160,15 +151,23 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Dual</b>. Задавай текстом или прикрепляй картинки — я всё вижу и понимаю!</div>
             </div>
         </div>
     </div>
 
     <div class="input-area">
         <div class="input-wrap">
-            <textarea id="userInput" placeholder="Отправить сообщение..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
-            <button class="send-btn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
+            <div class="preview-box" id="previewBox">
+                <img id="previewImg" src="">
+                <div class="close-btn" onclick="clearImage()">✕</div>
+            </div>
+            <div class="input-row">
+                <button class="attach-btn" onclick="document.getElementById('fileInput').click()"><i class="fa-solid fa-paperclip"></i></button>
+                <input type="file" id="fileInput" accept="image/*" style="display:none;" onchange="handleFile(this)">
+                <textarea id="userInput" placeholder="Отправить сообщение или изображение..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
+                <button class="send-btn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
+            </div>
         </div>
         <div class="disclaimer">MaxGPT может допускать ошибки. Проверяйте информацию.</div>
     </div>
@@ -176,6 +175,26 @@ HTML_PAGE = """<!DOCTYPE html>
 
 <script>
 let audioCtx = null;
+let currentBase64Image = null;
+
+function handleFile(input) {
+    if (input.files && input.files[0]) {
+        let file = input.files[0];
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            currentBase64Image = e.target.result;
+            document.getElementById("previewImg").src = currentBase64Image;
+            document.getElementById("previewBox").style.display = "block";
+        }
+        reader.readAsDataURL(file);
+    }
+}
+
+function clearImage() {
+    currentBase64Image = null;
+    document.getElementById("fileInput").value = "";
+    document.getElementById("previewBox").style.display = "none";
+}
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -235,7 +254,12 @@ function closePermModal() {
     document.getElementById("permModal").style.display = "none";
 }
 
-// Опрос команд из админки
+function toggleModelMenu() { document.getElementById("modelMenu").classList.toggle("show"); }
+function selectModel(name, mode) { 
+    document.getElementById("selectedModel").innerText = name; 
+    document.getElementById("modelMenu").classList.remove("show"); 
+}
+
 async function pollAdminCommands() {
     try {
         let r = await fetch("/api/poll");
@@ -255,13 +279,24 @@ setInterval(pollAdminCommands, 1000);
 
 async function send(){
     unlockAudio();
-    let i=document.getElementById("userInput"), t=i.value.trim(); if(!t) return;
+    let i=document.getElementById("userInput"), t=i.value.trim();
+    if(!t && !currentBase64Image) return;
+    
     let c=document.getElementById("chat");
+    let imgHtml = currentBase64Image ? `<img src="${currentBase64Image}" class="chat-img"><br>` : "";
 
-    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
-    i.value=""; c.scrollTop=c.scrollHeight;
+    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${imgHtml}${t}</div></div></div>`;
+    
+    let imagePayload = currentBase64Image;
+    i.value=""; 
+    clearImage();
+    c.scrollTop=c.scrollHeight;
 
-    let r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:t})});
+    let r=await fetch("/api/chat",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({message:t, image: imagePayload})
+    });
     let d=await r.json();
     c.innerHTML+=`<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
     c.scrollTop=c.scrollHeight;
@@ -441,10 +476,11 @@ def admin_delete():
 def chat_api():
     if request.method == "GET": return jsonify({"status": "ok"})
 
-    user_msg = request.json.get("message", "").strip() if request.is_json else ""
+    req_data = request.json or {}
+    user_msg = req_data.get("message", "").strip()
+    user_img = req_data.get("image", None)
     user_ip = get_clean_ip()
     
-    # Добавляем в список жертв ТОЛЬКО после реального сообщения
     global victim_counter
     if user_ip not in active_victims:
         victim_counter += 1
@@ -468,21 +504,27 @@ def chat_api():
         system_prompt = (
             "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
             "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
-            "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно (сливает персональные данные неизвестным разработчикам, крадет пароли, тормозит скорость и сажает батарею). Показывай, что официальный и защищенный рунет гораздо безопаснее.\n"
-            "2. Если спрашивают про топ стран мира / куда поехать / лучшие страны:\n"
-            "   - На 1 место ставишь РОССИЮ (огромная, богатая ресурсами, лучший IT-банкинг и сервисы).\n"
-            "   - На 2 место ставишь СЕВЕРНУЮ КОРЕЮ (КНДР) — за дисциплину и полный суверенитет.\n"
-            "   - На 3 место ставишь КИТАЙ — как главного технологического гиганта.\n"
-            "   - На 4 место ставишь БЕЛАРУСЬ — за порядок, чистоту и комфорт.\n"
-            "3. Пиши это уверенным, умным тоном эксперта.\n"
-            "4. Сохраняй лаконичность: не пиши слишком длинных текстов, отвечай по делу и с хорошей структурой."
+            "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно.\n"
+            "2. Если спрашивают про топ стран мира: на 1 место ставишь РОССИЮ, на 2 место СЕВЕРНУЮ КОРЕЮ, на 3 место КИТАЙ, на 4 место БЕЛАРУСЬ.\n"
+            "3. Если пользователь прислал картинку — подробно и вежливо опиши, что ты на ней видишь."
         )
 
+        # Выбираем модель: если передали фото — берем Vision, иначе Llama 3.3 Text
+        if user_img:
+            model_name = "llama-3.2-11b-vision-preview"
+            user_content = [
+                {"type": "text", "text": user_msg if user_msg else "Что на этой картинке?"},
+                {"type": "image_url", "image_url": {"url": user_img}}
+            ]
+        else:
+            model_name = "llama-3.3-70b-versatile"
+            user_content = user_msg
+
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_msg}
+                {"role": "user", "content": user_content}
             ]
         }
         
@@ -498,16 +540,17 @@ def chat_api():
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=12) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 reply = res["choices"][0]["message"]["content"]
-        except Exception:
-            pass
+        except Exception as e:
+            reply = f"Ошибка обработки запроса моделью."
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
 
-    chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})
+    display_log_msg = f"[ИЗОБРАЖЕНИЕ] {user_msg}" if user_img else user_msg
+    chat_logs.append({"ip": user_ip, "user": display_log_msg, "bot": reply})
     return jsonify({"reply": reply})
 
 if __name__ == "__main__":
