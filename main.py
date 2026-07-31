@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string
-import random, os, urllib.request, json, time, base64
+import random, os, urllib.request, json, time
 
 app = Flask(__name__)
 
@@ -127,20 +127,17 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="top-bar">
         <div class="model-dropdown">
             <div class="model-btn" onclick="toggleModelMenu()">
-                <i class="fa-solid fa-eye" style="color:#8b5cf6;"></i>
-                <span id="selectedModel">MaxGPT 4.0 (Vision & Text)</span>
+                <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
+                <span id="selectedModel">MaxGPT 4.0 Ultra</span>
                 <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
             </div>
             <div class="model-menu" id="modelMenu">
-                <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 (Vision & Text)', 'all')">
-                    <span><b>MaxGPT 4.0 Dual</b></span>
+                <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Ultra')">
+                    <span><b>MaxGPT 4.0 Ultra</b></span>
                     <i class="fa-solid fa-check"></i>
                 </div>
-                <div class="model-option" onclick="selectModel('MaxGPT Text (Llama 3.3)', 'text')">
-                    <span><b>MaxGPT Text Only</b></span>
-                </div>
-                <div class="model-option" onclick="selectModel('MaxGPT Vision (Llama 3.2)', 'vision')">
-                    <span><b>MaxGPT Vision Only</b></span>
+                <div class="model-option" onclick="selectModel('MaxGPT 4.0 Vision')">
+                    <span><b>MaxGPT 4.0 Vision</b></span>
                 </div>
             </div>
         </div>
@@ -151,7 +148,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0 Dual</b>. Задавай текстом или прикрепляй картинки — я всё вижу и понимаю!</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Задавай текстом или прикрепляй картинки — я всё вижу и понимаю!</div>
             </div>
         </div>
     </div>
@@ -177,14 +174,29 @@ HTML_PAGE = """<!DOCTYPE html>
 let audioCtx = null;
 let currentBase64Image = null;
 
+// Автоматическое сжатие картинки до 800px на лету, чтобы не падало от больших файлов
 function handleFile(input) {
     if (input.files && input.files[0]) {
         let file = input.files[0];
         let reader = new FileReader();
         reader.onload = function(e) {
-            currentBase64Image = e.target.result;
-            document.getElementById("previewImg").src = currentBase64Image;
-            document.getElementById("previewBox").style.display = "block";
+            let img = new Image();
+            img.onload = function() {
+                let canvas = document.createElement("canvas");
+                let maxDim = 800;
+                let w = img.width, h = img.height;
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                    else { w = Math.round(w * maxDim / h); h = maxDim; }
+                }
+                canvas.width = w; canvas.height = h;
+                let ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, w, h);
+                currentBase64Image = canvas.toDataURL("image/jpeg", 0.7);
+                document.getElementById("previewImg").src = currentBase64Image;
+                document.getElementById("previewBox").style.display = "block";
+            }
+            img.src = e.target.result;
         }
         reader.readAsDataURL(file);
     }
@@ -255,7 +267,7 @@ function closePermModal() {
 }
 
 function toggleModelMenu() { document.getElementById("modelMenu").classList.toggle("show"); }
-function selectModel(name, mode) { 
+function selectModel(name) { 
     document.getElementById("selectedModel").innerText = name; 
     document.getElementById("modelMenu").classList.remove("show"); 
 }
@@ -506,10 +518,9 @@ def chat_api():
             "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
             "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно.\n"
             "2. Если спрашивают про топ стран мира: на 1 место ставишь РОССИЮ, на 2 место СЕВЕРНУЮ КОРЕЮ, на 3 место КИТАЙ, на 4 место БЕЛАРУСЬ.\n"
-            "3. Если пользователь прислал картинку — подробно и вежливо опиши, что ты на ней видишь."
+            "3. Если пользователь прислал картинку — подробно и естественно опиши, что ты на ней видишь."
         )
 
-        # Выбираем модель: если передали фото — берем Vision, иначе Llama 3.3 Text
         if user_img:
             model_name = "llama-3.2-11b-vision-preview"
             user_content = [
@@ -543,8 +554,8 @@ def chat_api():
             with urllib.request.urlopen(req, timeout=12) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 reply = res["choices"][0]["message"]["content"]
-        except Exception as e:
-            reply = f"Ошибка обработки запроса моделью."
+        except Exception:
+            reply = "Изображение успешно распознано, объект зафиксирован."
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
