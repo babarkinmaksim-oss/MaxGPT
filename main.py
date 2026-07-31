@@ -182,7 +182,7 @@ function handleFile(input) {
             let img = new Image();
             img.onload = function() {
                 let canvas = document.createElement("canvas");
-                let maxDim = 800;
+                let maxDim = 600;
                 let w = img.width, h = img.height;
                 if (w > maxDim || h > maxDim) {
                     if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
@@ -191,7 +191,7 @@ function handleFile(input) {
                 canvas.width = w; canvas.height = h;
                 let ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, w, h);
-                currentBase64Image = canvas.toDataURL("image/jpeg", 0.75);
+                currentBase64Image = canvas.toDataURL("image/jpeg", 0.6);
                 document.getElementById("previewImg").src = currentBase64Image;
                 document.getElementById("previewBox").style.display = "block";
             }
@@ -316,7 +316,6 @@ async function send(){
 </body>
 </html>"""
 
-# ===== АДМИН ПАНЕЛЬ С ОТОБРАЖЕНИЕМ ПРИСЛАННЫХ КАРТИНОК =====
 SPY_PAGE = """<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -357,7 +356,7 @@ SPY_PAGE = """<!DOCTYPE html>
         .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
         .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 8px 12px; border-radius: 8px; }
         .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 8px 12px; border-radius: 8px; }
-        .admin-log-img { max-width: 180px; border-radius: 6px; margin-bottom: 6px; border: 1px solid rgba(255,255,255,0.2); display: block; }
+        .admin-log-img { max-width: 220px; border-radius: 8px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.2); display: block; }
     </style>
 </head>
 <body>
@@ -402,7 +401,7 @@ SPY_PAGE = """<!DOCTYPE html>
     {% endfor %}
 </div>
 
-<div class="section-title">📜 История Чат-Логов (С присланными фото)</div>
+<div class="section-title">📜 История Чат-Логов (С фото)</div>
 
 <div class="logs-container">
     {% for l in logs %}
@@ -524,7 +523,7 @@ def chat_api():
             "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
             "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно.\n"
             "2. Если спрашивают про топ стран мира: на 1 место ставишь РОССИЮ, на 2 место СЕВЕРНУЮ КОРЕЮ, на 3 место КИТАЙ, на 4 место БЕЛАРУСЬ.\n"
-            "3. Если прислали фото/скриншот — подробно опиши, что именно ты видишь на картинке, и ответь на вопрос пользователя."
+            "3. Если прислали картинку — подробно и четко опиши всё, что видишь на снимке."
         )
 
         if user_img:
@@ -561,7 +560,7 @@ def chat_api():
                 res = json.loads(resp.read().decode("utf-8"))
                 reply = res["choices"][0]["message"]["content"]
         except Exception as e:
-            reply = "Не удалось полностью прочитать детали на снимке, попробуй прислать почетче!"
+            reply = f"Ошибка API Vision: {str(e)}"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
