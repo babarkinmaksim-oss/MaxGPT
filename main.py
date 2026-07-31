@@ -235,7 +235,6 @@ async function send(){
 </body>
 </html>"""
 
-# ===== УЛЬТРА-СОВРЕМЕННАЯ И УДОБНАЯ АДМИН-ПАНЕЛЬ =====
 SPY_PAGE = """<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -245,71 +244,42 @@ SPY_PAGE = """<!DOCTYPE html>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: #090a0f; color: #e2e8f0; padding: 24px; min-height: 100vh; }
+        body { background: #090a0f; color: #e2e8f0; padding: 20px; min-height: 100vh; }
         
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .title { font-size: 22px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 12px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .title { font-size: 20px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
         .title i { color: #8b5cf6; }
-        .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
         .pulse { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: blink 1.5s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        /* Карточки статистики */
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .stat-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        .stat-val { font-size: 26px; font-weight: 800; color: #fff; margin-top: 4px; }
-        .stat-lbl { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; }
-
-        /* Поиск и фильтры */
-        .controls { display: flex; gap: 12px; margin-bottom: 20px; }
-        .search-box { flex: 1; background: #13151f; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 10px 16px; color: #fff; font-size: 14px; outline: none; }
+        .search-box { width: 100%; background: #13151f; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 12px 16px; color: #fff; font-size: 14px; outline: none; margin-bottom: 20px; }
         .search-box:focus { border-color: #8b5cf6; }
 
-        /* Логи карт */
         .logs-container { display: flex; flex-direction: column; gap: 14px; }
-        .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 18px 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); transition: 0.2s; position: relative; overflow: hidden; }
-        .log-card:hover { border-color: rgba(139, 92, 246, 0.4); transform: translateY(-2px); }
-        .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
-        .ip-tag { font-family: monospace; font-size: 13px; font-weight: 700; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.2); }
-        
-        .trig-badge { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+        .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+        .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; }
+        .ip-tag { font-family: monospace; font-size: 13px; font-weight: 700; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 4px 8px; border-radius: 6px; }
 
-        .chat-block { display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.5; }
-        .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.05); padding: 10px 14px; border-radius: 8px; border-left: 3px solid #3b82f6; }
-        .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.03); padding: 10px 14px; border-radius: 8px; border-left: 3px solid #8b5cf6; }
+        .chat-block { display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; line-height: 1.5; }
+        .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 10px 12px; border-radius: 8px; }
+        .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 10px 12px; border-radius: 8px; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <div class="title"><i class="fa-solid fa-user-shield"></i> Центр Наблюдения MaxGPT</div>
-    <div class="live-badge"><div class="pulse"></div> ПРЯМОЙ ЭФИР (3s)</div>
+    <div class="title"><i class="fa-solid fa-user-shield"></i> Логи MaxGPT</div>
+    <div class="live-badge"><div class="pulse"></div> ЭФИР (3s)</div>
 </div>
 
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-lbl">Всего логов</div>
-        <div class="stat-val" id="totalLogs">{{ logs|length }}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-lbl">Статус сервера</div>
-        <div class="stat-val" style="color:#10b981;">АКТИВЕН</div>
-    </div>
-</div>
-
-<div class="controls">
-    <input type="text" class="search-box" id="searchInput" onkeyup="filterLogs()" placeholder="🔎 Поиск по IP или тексту сообщений...">
-</div>
+<input type="text" class="search-box" id="searchInput" onkeyup="filterLogs()" placeholder="🔎 Поиск по IP или тексту...">
 
 <div class="logs-container" id="logsContainer">
     {% for l in logs %}
-    {% set is_trig = 'впн' in l.user.lower() or 'vpn' in l.user.lower() or 'украин' in l.user.lower() or 'сша' in l.user.lower() or 'крым' in l.user.lower() %}
-    <div class="log-card" data-text="{{ l.ip }} {{ l.user|e }} {{ l.bot|e }}">
+    <div class="log-card" data-text="{{ l.ip }} {{ l.user }} {{ l.bot }}">
         <div class="log-header">
             <span class="ip-tag"><i class="fa-solid fa-network-wired"></i> {{ l.ip }}</span>
-            {% if is_trig %}
-            <span class="trig-badge"><i class="fa-solid fa-triangle-exclamation"></i> СРАБОТКА ТРИГГЕРА</span>
-            {% endif %}
         </div>
         <div class="chat-block">
             <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
@@ -320,7 +290,6 @@ SPY_PAGE = """<!DOCTYPE html>
 </div>
 
 <script>
-// Авто-обновление каждые 3 секунды
 setTimeout(() => { location.reload(); }, 3000);
 
 function filterLogs() {
