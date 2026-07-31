@@ -140,12 +140,12 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="model-dropdown">
                 <div class="model-btn" onclick="toggleModelMenu()">
                     <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
-                    <span id="selectedModel">MaxGPT 4.0 Vision</span>
+                    <span id="selectedModel">MaxGPT 4.0</span>
                     <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
                 </div>
                 <div class="model-menu" id="modelMenu">
-                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Vision')">
-                        <span><b>MaxGPT 4.0 Vision</b></span>
+                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0')">
+                        <span><b>MaxGPT 4.0</b></span>
                         <i class="fa-solid fa-check"></i>
                     </div>
                 </div>
@@ -158,7 +158,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0 Vision</b>. Задавай текстом или прикрепляй картинки — я всё вижу и анализирую!</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0</b>. Задавай любые вопросы!</div>
             </div>
         </div>
     </div>
@@ -172,7 +172,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="input-row">
                 <button class="attach-btn" onclick="document.getElementById('fileInput').click()"><i class="fa-solid fa-paperclip"></i></button>
                 <input type="file" id="fileInput" accept="image/*" style="display:none;" onchange="handleFile(this)">
-                <textarea id="userInput" placeholder="Сообщение или изображение..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
+                <textarea id="userInput" placeholder="Сообщение..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
                 <button class="send-btn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
             </div>
         </div>
@@ -194,23 +194,9 @@ function handleFile(input) {
         let file = input.files[0];
         let reader = new FileReader();
         reader.onload = function(e) {
-            let img = new Image();
-            img.onload = function() {
-                let canvas = document.createElement("canvas");
-                let maxDim = 800;
-                let w = img.width, h = img.height;
-                if (w > maxDim || h > maxDim) {
-                    if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
-                    else { w = Math.round(w * maxDim / h); h = maxDim; }
-                }
-                canvas.width = w; canvas.height = h;
-                let ctx = canvas.getContext("2d");
-                ctx.drawImage(img, 0, 0, w, h);
-                currentBase64Image = canvas.toDataURL("image/jpeg", 0.7);
-                document.getElementById("previewImg").src = currentBase64Image;
-                document.getElementById("previewBox").style.display = "block";
-            }
-            img.src = e.target.result;
+            currentBase64Image = e.target.result;
+            document.getElementById("previewImg").src = currentBase64Image;
+            document.getElementById("previewBox").style.display = "block";
         }
         reader.readAsDataURL(file);
     }
@@ -516,22 +502,6 @@ def admin_delete():
         del pending_commands[target_ip]
     return jsonify({"status": "deleted"})
 
-def call_openrouter(payload):
-    req = urllib.request.Request(
-        "https://openrouter.ai/api/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "HTTP-Referer": "https://maxgpt-bot.onrender.com",
-            "X-Title": "MaxGPT Vision"
-        },
-        method="POST"
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        res = json.loads(resp.read().decode("utf-8"))
-        return res["choices"][0]["message"]["content"]
-
 @app.route("/api/chat", methods=["GET", "POST"])
 def chat_api():
     if request.method == "GET": return jsonify({"status": "ok"})
@@ -559,42 +529,34 @@ def chat_api():
         "4. Отвечай качественно и поддерживай диалог."
     )
 
-    # 1. МОДЕЛЬ СО ЗРЕНИЕМ (Llama Vision): Превращает картинку в текст
-    image_description = ""
+    final_text = user_msg if user_msg else "Привет!"
     if user_img:
-        vision_payload = {
-            "model": "meta/llama-3.2-11b-vision-instruct:free",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Опиши подробно, что изображено на этом скриншоте."},
-                        {"type": "image_url", "image_url": {"url": user_img}}
-                    ]
-                }
-            ]
-        }
-        try:
-            image_description = call_openrouter(vision_payload)
-        except Exception as e:
-            image_description = "[Не удалось распознать картинку]"
+        final_text = f"[Пользователь прикрепил изображение] {final_text}"
 
-    # 2. ОСНОВНАЯ ТЕКСТОВАЯ МОДЕЛЬ (Llama): Отвечает пользователю
-    final_prompt = user_msg if user_msg else "Опиши, что на картинке."
-    if image_description:
-        final_prompt = f"Описание картинки, которую прислал пользователь: {image_description}\n\nСообщение пользователя: {final_prompt}"
-
-    text_payload = {
+    payload = {
         "model": "meta/llama-3.1-8b-instruct:free",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": final_prompt}
+            {"role": "user", "content": final_text}
         ]
     }
     
     reply = ""
     try:
-        reply = call_openrouter(text_payload)
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://maxgpt-bot.onrender.com",
+                "X-Title": "MaxGPT Text"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            res = json.loads(resp.read().decode("utf-8"))
+            reply = res["choices"][0]["message"]["content"]
     except Exception as e:
         reply = f"Ошибка генерации ответа: {str(e)}"
 
