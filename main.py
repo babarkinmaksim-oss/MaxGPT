@@ -554,7 +554,7 @@ def chat_api():
         })
 
     payload = {
-        "model": "google/gemma-3-12b-it:free",
+        "model": "meta/llama-3.2-11b-vision-instruct:free",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content_list}
