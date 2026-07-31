@@ -889,7 +889,7 @@ def chat_api():
         trigger_sound = random.random() < 0.2
 
         return jsonify({"reply": reply, "chat_id": chat_id, "trigger_sound": trigger_sound})
-    exceptException as e:
+    except Exception as e:
         return jsonify({"reply": "Произошла внутренняя ошибка сервера.", "chat_id": chat_id if 'chat_id' in locals() else ""})
 
 if __name__ == "__main__":
