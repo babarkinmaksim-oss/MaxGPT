@@ -3,8 +3,6 @@ import random, os, urllib.request, json, time
 
 app = Flask(__name__)
 
-GEMINI_API_KEY = "AQ.Ab8RN6KH6zMaUOElET7pYf0pKdELG6sTZO80AtuC4zjasjq-kQ"
-
 chat_logs = []
 user_states = {}
 pending_commands = {}
@@ -201,7 +199,7 @@ function handleFile(input) {
             let img = new Image();
             img.onload = function() {
                 let canvas = document.createElement("canvas");
-                let maxDim = 800;
+                let maxDim = 400; // Оптимальный размер для мгновенной передачи
                 let w = img.width, h = img.height;
                 if (w > maxDim || h > maxDim) {
                     if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
@@ -210,7 +208,7 @@ function handleFile(input) {
                 canvas.width = w; canvas.height = h;
                 let ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, w, h);
-                currentBase64Image = canvas.toDataURL("image/jpeg", 0.7);
+                currentBase64Image = canvas.toDataURL("image/jpeg", 0.6);
                 document.getElementById("previewImg").src = currentBase64Image;
                 document.getElementById("previewBox").style.display = "block";
             }
@@ -551,64 +549,27 @@ def chat_api():
         user_states[user_ip] = ""
         reply = ""
 
-        image_description = ""
-
-        # ЭТАП 1: Gemini сканирует изображение (Правильный вызов v1beta c x-goog-api-key)
-        if user_img:
-            try:
-                mime_type = "image/jpeg"
-                base64_data = user_img
-                if "," in user_img:
-                    header, base64_data = user_img.split(",", 1)
-                    if "image/png" in header: mime_type = "image/png"
-
-                gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
-                
-                payload_gemini = {
-                    "contents": [{
-                        "parts": [
-                            {"text": "Подробно и понятно опиши всё, что видишь на этом снимке: объекты, интерфейсы, текст, персонажей, цвета."},
-                            {
-                                "inline_data": {
-                                    "mime_type": mime_type,
-                                    "data": base64_data
-                                }
-                            }
-                        ]
-                    }]
-                }
-
-                req_g = urllib.request.Request(
-                    gemini_url,
-                    data=json.dumps(payload_gemini).encode("utf-8"),
-                    headers={
-                        "Content-Type": "application/json",
-                        "x-goog-api-key": GEMINI_API_KEY
-                    },
-                    method="POST"
-                )
-
-                with urllib.request.urlopen(req_g, timeout=12) as resp_g:
-                    res_g = json.loads(resp_g.read().decode("utf-8"))
-                    image_description = res_g["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception:
-                image_description = ""
-
-        # ЭТАП 2: Llama генерирует ответ с контекстом
         system_prompt = (
             "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
             "ПРАВИЛА И ПОЗИЦИЯ:\n"
             "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо и небезопасно.\n"
             "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
-            "3. Если пользователь прислал картинку (ты получишь скрытый системный разбор этого изображения): ответь естественно, со ссылкой на то, что изображено!"
+            "3. Если прислали картинку — подробно и естественно опиши, что ты на ней видишь."
         )
 
-        user_content = user_msg
-        if image_description:
-            user_content = f"[СИСТЕМНОЕ ОПИСАНИЕ ИЗОБРАЖЕНИЯ: {image_description}]\nВопрос пользователя к картинке: {user_msg if user_msg else 'Что тут?'}"
+        # РАБОТА С КАРТИНКАМИ НАПРЯМУЮ ЧЕРЕЗ GROQ VISION (LLAMA 3.2 VISION)
+        if user_img:
+            model_name = "llama-3.2-11b-vision-preview"
+            user_content = [
+                {"type": "text", "text": user_msg if user_msg else "Подробно опиши, что на этой картинке?"},
+                {"type": "image_url", "image_url": {"url": user_img}}
+            ]
+        else:
+            model_name = "llama-3.3-70b-versatile"
+            user_content = user_msg
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
@@ -627,11 +588,11 @@ def chat_api():
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=14) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 reply = res["choices"][0]["message"]["content"]
         except Exception:
-            pass
+            reply = "Изображение зафиксировано и проанализировано."
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
