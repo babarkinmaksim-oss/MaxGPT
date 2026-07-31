@@ -820,7 +820,7 @@ def chat_api():
                     img_mime = "image/jpeg"
 
                 gemini_key = os.environ.get('GEMINI_API_KEY', '')
-                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
 
                 gemini_payload = {
                     "contents": [
@@ -880,12 +880,14 @@ def chat_api():
             "messages": messages_payload
         }
         
+        groq_key = os.environ.get('GROQ_API_KEY', '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')
+        
         req = urllib.request.Request(
             "https://api.groq.com/openai/v1/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer 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",
+                "Authorization": f"Bearer {groq_key}",
                 "User-Agent": "Mozilla/5.0"
             },
             method="POST"
