@@ -554,7 +554,7 @@ def chat_api():
         })
 
     payload = {
-        "model": "google/gemini-2.0-flash-exp:free",
+        "model": "google/gemma-3-12b-it:free",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content_list}
