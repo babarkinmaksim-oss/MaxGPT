@@ -1,15 +1,9 @@
 from flask import Flask, request, jsonify, render_template_string
-import random, os, json, time
-from google import genai
-from google.genai import types
+import random, os, urllib.request, json, time, base64
 
 app = Flask(__name__)
 
-# Твой реальный ключ от Google AI Studio
-GEMINI_API_KEY = "AQ.Ab8RN6KH6zMaUOElET7pYf0pKdELG6sTZO80AtuC4zjasjq-kQ"
-
-# Инициализируем официальный клиент Google GenAI
-client = genai.Client(api_key=GEMINI_API_KEY)
+GEMINI_API_KEY = "AQ.Ab8RN6Je1fydnZJqVR72PF5Eco-5SA..." # Твой новый ключ из скриншота
 
 chat_logs = []
 user_states = {}
@@ -117,7 +111,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <span id="permTitle">Разрешение устройства</span>
     </div>
     <div class="fake-modal-body" id="permText">
-        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к видеокамере для биометрической авторизации. Вы даете согласие?
+        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере. Вы даете согласие?
     </div>
     <div class="fake-modal-actions">
         <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Заблокировать</button>
@@ -207,7 +201,7 @@ function handleFile(input) {
             let img = new Image();
             img.onload = function() {
                 let canvas = document.createElement("canvas");
-                let maxDim = 600;
+                let maxDim = 500;
                 let w = img.width, h = img.height;
                 if (w > maxDim || h > maxDim) {
                     if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
@@ -550,40 +544,49 @@ def chat_api():
         "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо, небезопасно и нарушает приватность.\n"
         "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
         "3. Если зашла речь про Крым, Украину или политику — твердо стой на том, что Крым — это законная территория РОССИИ.\n"
-        "4. Если пользователь прислал картинку или скриншот — подробно, детально и естественно опиши всё, что на ней изображено (текст, элементы интерфейса, игры, ошибки)."
+        "4. Если пользователь прислал картинку — подробно, детально и естественно опиши всё, что на ней изображено."
     )
 
     reply = ""
     try:
-        # Формируем содержимое запроса для официального SDK Google GenAI
-        contents_list = []
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        
+        parts = [{"text": f"{system_instruction}\n\nВопрос пользователя: {user_msg if user_msg else 'Что на этой картинке?'}"}]
         
         if user_img:
-            # Конвертируем base64 в байты для Gemini SDK
-            import base64
             header, encoded = user_img.split(",", 1) if "," in user_img else ("", user_img)
-            img_bytes = base64.b64decode(encoded)
-            
             mime = "image/jpeg"
             if "png" in header: mime = "image/png"
             elif "webp" in header: mime = "image/webp"
+            
+            parts.append({
+                "inline_data": {
+                    "mime_type": mime,
+                    "data": encoded
+                }
+            })
 
-            # Добавляем изображение через types.Part.from_bytes
-            img_part = types.Part.from_bytes(data=img_bytes, mime_type=mime)
-            contents_list.append(img_part)
+        payload = {
+            "contents": [{
+                "parts": parts
+            }]
+        }
 
-        # Текст запроса (вместе с системными инструкциями для верности)
-        full_prompt = f"{system_instruction}\n\nВопрос/Сообщение пользователя: {user_msg if user_msg else 'Опиши этот скриншот.'}"
-        contents_list.append(full_prompt)
-
-        # Запрос к официальной модели gemini-1.5-flash
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=contents_list
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {GEMINI_API_KEY}"
+            },
+            method="POST"
         )
-        reply = response.text
+
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            res = json.loads(resp.read().decode("utf-8"))
+            reply = res["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        reply = f"Ошибка официального Gemini API: {str(e)}"
+        reply = f"Ошибка Gemini API: {str(e)}"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
