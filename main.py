@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_from_directory
 import random, os, urllib.request, json, time, re
 
 app = Flask(__name__)
@@ -303,7 +303,7 @@ function unlockAudio() {
     }
 }
 
-// Воспроизведение твоего .wav файла
+// Воспроизведение твоего .wav файла из корневой папки
 function playCustomSound() {
     unlockAudio();
     try {
@@ -697,6 +697,11 @@ def get_clean_ip():
     if request.headers.getlist("X-Forwarded-For"):
         return request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
     return request.remote_addr
+
+# ЯВНЫЙ МАРШРУТ ДЛЯ ПЕРЕДАЧИ ТВОЕГО WAV-ФАЙЛА ИЗ КОРНЯ ПРОЕКТА
+@app.route("/mysound.wav")
+def serve_audio():
+    return send_from_directory(os.getcwd(), "mysound.wav")
 
 @app.route("/")
 def home():
