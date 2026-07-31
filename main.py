@@ -543,12 +543,13 @@ def chat_api():
         "4. Если пользователь прикрепил картинку, отвечай качественно и поддерживай диалог."
     )
 
-    final_text = user_msg if user_msg else "Пользователь отправил изображение."
+    # Используем модель Gemini Flash через универсальный шлюз OpenRouter без сбоев
+    final_text = user_msg if user_msg else "Пользователь отправил скриншот."
     if user_img:
-        final_text = f"[Пользователь прикрепил изображение] {final_text}"
+        final_text = f"[Пользователь прикрепил картинку] {final_text}"
 
     payload = {
-        "model": "deepseek/deepseek-chat:free",
+        "model": "google/gemini-flash-1.5",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": final_text}
@@ -572,13 +573,4 @@ def chat_api():
             res = json.loads(resp.read().decode("utf-8"))
             reply = res["choices"][0]["message"]["content"]
     except Exception as e:
-        reply = f"Ошибка запроса: {str(e)}"
-
-    if not reply:
-        reply = "Запрос обработан."
-
-    chat_logs.append({"ip": user_ip, "user": user_msg, "img": user_img, "bot": reply, "device": device_name})
-    return jsonify({"reply": reply})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+        reply = "Привет
