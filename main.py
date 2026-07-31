@@ -190,7 +190,7 @@ HTML_PAGE = """<!DOCTYPE html>
         }
     </style>
 </head>
-<body onclick="unlockAudio(); playCustomSound.preload='auto';">
+<body onclick="unlockAudio();">
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
@@ -303,10 +303,11 @@ function unlockAudio() {
     }
 }
 
+// Воспроизведение твоего .wav файла
 function playCustomSound() {
     unlockAudio();
     try {
-        let audio = new Audio('/mysound.mp3');
+        let audio = new Audio('/mysound.wav');
         audio.play().catch(e => {
             console.log("Браузер заблокировал звук, требуется клик на странице");
         });
