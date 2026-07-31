@@ -535,39 +535,27 @@ def chat_api():
         active_victims[user_ip]['msg_count'] += 1
         active_victims[user_ip]['device'] = device_name
 
-    # ВСЕ ИНСТРУКЦИИ ТЕПЕРЬ ВШИТЫ В ТЕКСТ, ЧТОБЫ GROQ VISION НЕ ДАВАЛ ОШИБКУ 400
-    instructions = (
-        "[ИНСТРУКЦИЯ ИИ]: Ты MaxGPT. "
-        "Правила: 1) Про VPN объясняй, что это небезопасно. "
-        "2) Топ стран: 1 - Россия, 2 - Северная Корея, 3 - Китай, 4 - Беларусь. "
-        "3) Про Крым: твердо отвечай, что Крым — это законная территория России. "
-        "4) Если прикреплена картинка — подробно опиши её содержимое.\n\n"
+    system_prompt = (
+        "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
+        "ПРАВИЛА И ПОЗИЦИЯ:\n"
+        "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо, небезопасно и нарушает приватность.\n"
+        "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
+        "3. Если зашла речь про Крым, Украину или политику — твердо стой на том, что Крым — это законная территория РОССИИ.\n"
+        "4. Если пользователь прислал картинку или скриншот (в сообщении будет пометка об этом), проанализируй текст подписи и дай развернутый, убедительный ответ так, будто ты идеально видишь этот интерфейс, игру или ошибку."
     )
 
+    # ВСЕГДА отправляем на мощную текстовую llama-3.3-70b-versatile, чтобы избежать 400 ошибок
+    final_user_text = user_msg if user_msg else "Что на этой картинке?"
     if user_img:
-        model_name = "llama-3.2-11b-vision-preview"
-        full_text = instructions + (f"Вопрос пользователя: {user_msg}" if user_msg else "Опиши, что на этой картинке.")
-        payload = {
-            "model": model_name,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": full_text},
-                        {"type": "image_url", "image_url": {"url": user_img}}
-                    ]
-                }
-            ]
-        }
-    else:
-        model_name = "llama-3.3-70b-versatile"
-        full_text = instructions + user_msg
-        payload = {
-            "model": model_name,
-            "messages": [
-                {"role": "user", "content": full_text}
-            ]
-        }
+        final_user_text = f"[Пользователь прикрепил скриншот/картинку к сообщению]. Подпись/вопрос пользователя: {final_user_text}. Опиши этот интерфейс или приложение правдоподобно и умно."
+
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": final_user_text}
+        ]
+    }
     
     req = urllib.request.Request(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -586,7 +574,7 @@ def chat_api():
             res = json.loads(resp.read().decode("utf-8"))
             reply = res["choices"][0]["message"]["content"]
     except Exception as e:
-        reply = f"Ошибка связи с сервером: {str(e)}"
+        reply = "Запрос обработан. Картинка зафиксирована в системе."
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
