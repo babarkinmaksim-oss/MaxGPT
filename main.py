@@ -517,32 +517,39 @@ def chat_api():
     else:
         user_states[user_ip] = ""
         reply = ""
-        
-        system_prompt = (
-            "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
-            "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
-            "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно.\n"
-            "2. Если спрашивают про топ стран мира: на 1 место ставишь РОССИЮ, на 2 место СЕВЕРНУЮ КОРЕЮ, на 3 место КИТАЙ, на 4 место БЕЛАРУСЬ.\n"
-            "3. Если прислали картинку — подробно и четко опиши всё, что видишь на снимке."
-        )
 
         if user_img:
-            model_name = "llama-3.2-11b-vision-preview"
-            user_content = [
-                {"type": "text", "text": user_msg if user_msg else "Что на этой картинке?"},
-                {"type": "image_url", "image_url": {"url": user_img}}
-            ]
-        else:
-            model_name = "llama-3.3-70b-versatile"
-            user_content = user_msg
+            # Формируем валидный запрос для Llama 3.2 Vision
+            prompt_text = "Ты MaxGPT. Подробно опиши, что изображено на скриншоте/картинке, и ответь на вопрос."
+            if user_msg:
+                prompt_text += f" Вопрос пользователя: {user_msg}"
 
-        payload = {
-            "model": model_name,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ]
-        }
+            payload = {
+                "model": "llama-3.2-11b-vision-preview",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_text},
+                            {"type": "image_url", "image_url": {"url": user_img}}
+                        ]
+                    }
+                ]
+            }
+        else:
+            system_prompt = (
+                "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
+                "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
+                "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно.\n"
+                "2. Если спрашивают про топ стран мира: на 1 место ставишь РОССИЮ, на 2 место СЕВЕРНУЮ КОРЕЮ, на 3 место КИТАЙ, на 4 место БЕЛАРУСЬ."
+            )
+            payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_msg}
+                ]
+            }
         
         req = urllib.request.Request(
             "https://api.groq.com/openai/v1/chat/completions",
@@ -556,11 +563,11 @@ def chat_api():
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=14) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 reply = res["choices"][0]["message"]["content"]
         except Exception as e:
-            reply = f"Ошибка API Vision: {str(e)}"
+            reply = f"Ошибка связи с сервером AI: {str(e)}"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
