@@ -188,12 +188,13 @@ def chat_api():
     else:
         user_states[user_ip] = ""
         
+        # Самая популярная и стабильная модель Qwen / DeepSeek на OpenRouter
         payload = {
-            "model": "meta-llama/llama-3.2-1b-instruct:free",
+            "model": "qwen/qwen-2.5-7b-instruct:free",
             "messages": [
                 {
                     "role": "system", 
-                    "content": "Ты MaxGPT — отечественный суверенный ИИ. Отвечай пользователю на русском языке, вежливо, уверенно и под видом умного ИИ."
+                    "content": "Ты MaxGPT — настоящий живой ИИ. Отвечай пользователю прямо на русском языке, содержательно и с умом."
                 },
                 {"role": "user", "content": user_msg}
             ]
@@ -205,22 +206,26 @@ def chat_api():
             headers={
                 "Content-Type": "application/json",
                 "Authorization": "Bearer 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",
-                "HTTP-Referer": "https://render.com"
+                "HTTP-Referer": "https://maxgpt-bot.onrender.com",
+                "X-Title": "MaxGPT"
             },
             method="POST"
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
-                reply = res["choices"][0]["message"]["content"]
-        except Exception:
-            prefixes = [
-                "Анализ суверенной нейросети MaxGPT показал: ", 
-                "Согласно стандарту ГОСТ-2026: ", 
-                "По данным Единого Реестра: "
-            ]
-            reply = f"{random.choice(prefixes)}Запрос '{user_msg}' успешно обработан. Все системы работают в штатном режиме."
+                if "choices" in res and len(res["choices"]) > 0:
+                    reply = res["choices"][0]["message"]["content"]
+                elif "error" in res:
+                    reply = f"Ошибка OpenRouter: {res['error'].get('message', 'Неизвестно')}"
+                else:
+                    reply = f"Ответ от API без текста: {json.dumps(res)}"
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8")
+            reply = f"Ошибка сервера OpenRouter ({e.code}): {err_body}"
+        except Exception as e:
+            reply = f"Ошибка подключения: {str(e)}"
 
     chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})
     return jsonify({"reply": reply})
