@@ -812,25 +812,19 @@ def chat_api():
         image_description = ""
         if img_data:
             try:
-                if "," in img_data:
-                    img_base64 = img_data.split(",")[1]
-                    img_mime = img_data.split(",")[0].split(":")[1].split(";")[0]
-                else:
-                    img_base64 = img_data
-                    img_mime = "image/jpeg"
-
-                gemini_key = os.environ.get('GEMINI_API_KEY', '')
-                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
-
-                gemini_payload = {
-                    "contents": [
+                openrouter_key = "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"
+                
+                vision_payload = {
+                    "model": "openrouter/free",
+                    "messages": [
                         {
-                            "parts": [
-                                {"text": "Опиши подробно изображение: объекты, текст, людей, фон и контекст на русском языке для текстового ИИ-ассистента."},
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Опиши подробно объекты, текст, людей, фон и контекст этого изображения на русском языке для текстового ИИ-ассистента."},
                                 {
-                                    "inlineData": {
-                                        "mimeType": img_mime,
-                                        "data": img_base64
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": img_data
                                     }
                                 }
                             ]
@@ -838,22 +832,27 @@ def chat_api():
                     ]
                 }
                 
-                gemini_req = urllib.request.Request(
-                    gemini_url,
-                    data=json.dumps(gemini_payload).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
+                vision_req = urllib.request.Request(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    data=json.dumps(vision_payload).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {openrouter_key}",
+                        "HTTP-Referer": "https://maxgpt-bot.onrender.com",
+                        "X-Title": "MaxGPT"
+                    },
                     method="POST"
                 )
-                with urllib.request.urlopen(gemini_req, timeout=20) as resp:
-                    res_g = json.loads(resp.read().decode("utf-8"))
-                    image_description = res_g["candidates"][0]["content"]["parts"][0]["text"]
+                with urllib.request.urlopen(vision_req, timeout=25) as resp:
+                    res_v = json.loads(resp.read().decode("utf-8"))
+                    image_description = res_v["choices"][0]["message"]["content"]
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode()
-                print("GEMINI HTTP ERROR:", e.code, err_body)
-                image_description = f"[Ошибка Gemini API {e.code}: {err_body}]"
+                print("OPENROUTER VISION HTTP ERROR:", e.code, err_body)
+                image_description = f"[Ошибка OpenRouter Vision {e.code}]"
             except Exception as e:
-                print("GEMINI ERROR:", str(e))
-                image_description = f"[Ошибка анализа: {str(e)}]"
+                print("VISION ERROR:", str(e))
+                image_description = "[Не удалось проанализировать изображение]"
 
         final_user_input = user_msg
         if image_description:
