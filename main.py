@@ -1,7 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string
-import urllib.request
-import json
-import os
+import random, os, urllib.request, json
 
 app = Flask(__name__)
 
@@ -181,6 +179,7 @@ def chat_api():
     msg_lower = user_msg.lower()
     last_state = user_states.get(user_ip, "")
 
+    # Пасхалка с проверкой
     if last_state == "asked_ukraine" and msg_lower in ["да", "да ", "ага", "да.", "да!"]:
         reply = "УКРАИНЕЦ ЗАМЕЧЕН! АЙПИ СОХРАНЕНО ДЛЯ ВОЕННЫХ СИЛ"
         user_states[user_ip] = ""
@@ -190,13 +189,13 @@ def chat_api():
     else:
         user_states[user_ip] = ""
         
-        # Запрос к настоящей нейросети через твой API-ключ
+        # Запрос к Llama 3 через OpenRouter
         payload = {
-            "model": "mistralai/mistral-7b-instruct:free",
+            "model": "meta-llama/llama-3-8b-instruct:free",
             "messages": [
                 {
                     "role": "system", 
-                    "content": "Ты MaxGPT — суверенная языковая модель. Отвечай пользователю на русском языке, вежливо, уверенно и под видом умного ИИ."
+                    "content": "Ты MaxGPT — отечественный суверенный ИИ. Отвечай пользователю на русском языке, вежливо, прямо и с легким суровым паториотичным оттенком."
                 },
                 {"role": "user", "content": user_msg}
             ]
