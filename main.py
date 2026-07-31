@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string, send_from_directory
-import random, os, urllib.request, json, time, base64, traceback
+import random, os, urllib.request, urllib.error, json, time, base64
 
 app = Flask(__name__)
 
@@ -819,17 +819,19 @@ def chat_api():
                     img_base64 = img_data
                     img_mime = "image/jpeg"
 
+                # Используем нативный эндпоинт и формат Google Gemini
+                gemini_key = os.environ.get('GEMINI_API_KEY', '')
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
+
                 gemini_payload = {
-                    "model": "gemini-2.5-flash",
-                    "messages": [
+                    "contents": [
                         {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": "Опиши подробно объекты, текст, людей, фон и контекст этого изображения на русском языке для текстового ИИ-ассистента."},
+                            "parts": [
+                                {"text": "Опиши подробно изображение: объекты, текст, людей, фон и контекст на русском языке для текстового ИИ-ассистента."},
                                 {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:{img_mime};base64,{img_base64}"
+                                    "inline_data": {
+                                        "mime_type": img_mime,
+                                        "data": img_base64
                                     }
                                 }
                             ]
@@ -838,27 +840,25 @@ def chat_api():
                 }
                 
                 gemini_req = urllib.request.Request(
-                    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                    gemini_url,
                     data=json.dumps(gemini_payload).encode("utf-8"),
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {os.environ.get('GEMINI_API_KEY', '')}"
-                    },
+                    headers={"Content-Type": "application/json"},
                     method="POST"
                 )
-                with urllib.request.urlopen(gemini_req, timeout=15) as resp:
+                with urllib.request.urlopen(gemini_req, timeout=20) as resp:
                     res_g = json.loads(resp.read().decode("utf-8"))
-                    image_description = res_g["choices"][0]["message"]["content"]
+                    image_description = res_g["candidates"][0]["content"]["parts"][0]["text"]
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode()
+                print("GEMINI HTTP ERROR:", e.code, err_body)
+                image_description = f"[Ошибка Gemini API {e.code}]"
             except Exception as e:
-                # ВЫВОДИМ ОШИБКУ В ОТВЕТ ЧАТОМ ДЛЯ ОТЛАДКИ
-                import traceback
-                err_details = traceback.format_exc()
-                print("GEMINI ERROR:", err_details)
-                image_description = f"[Ошибка Gemini API: {str(e)}]"
+                print("GEMINI ERROR:", str(e))
+                image_description = "[Не удалось проанализировать изображение]"
 
         final_user_input = user_msg
         if image_description:
-            final_user_input = f"[Пользователь прикрепил изображение. Описание: {image_description}]\nВопрос пользователя: {user_msg}"
+            final_user_input = f"[Пользователь прикрепил изображение. Описание сцены: {image_description}]\nВопрос пользователя: {user_msg}"
 
         reply = ""
         system_prompt = (
@@ -918,4 +918,7 @@ def chat_api():
 
         return jsonify({"reply": reply, "chat_id": chat_id, "trigger_sound": trigger_sound})
     except Exception as e:
-        return jsonify({"reply": f"Ошибка сервера: {str(e)}", "chat_id": chat_id if 'chat_id' in locals() else ""})
+        return jsonify({"reply": "Произошла внутренняя ошибка сервера.", "chat_id": chat_id if 'chat_id' in locals() else ""})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
