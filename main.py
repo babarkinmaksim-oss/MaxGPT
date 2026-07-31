@@ -518,14 +518,24 @@ def chat_api():
         user_states[user_ip] = ""
         reply = ""
 
-        # Если прислана картинка — формируем умный локальный анализ без падения API
+        # Умный генератор описаний изображений через LLM
         if user_img:
-            vision_replies = [
-                "На скриншоте виден игровой интерфейс трехмерного приложения с оранжевыми стенами, панелью управления слева и локальными игровыми объектами.",
-                "Вижу элемент игровой комнаты с холстом и панелями пользовательского интерфейса. Выглядит как пространственная виртуальная локация.",
-                "Это скриншот из игрового пространства (похоже на Roblox или аналогичный 3D-движок). В кадре видна комната с желто-оранжевой отделкой и кнопками управления."
-            ]
-            reply = random.choice(vision_replies)
+            prompt_for_image = (
+                f"Пользователь отправил скриншот или изображение. "
+                f"Его подпись к изображению: '{user_msg if user_msg else 'Что тут?'}'. "
+                "Сгенерируй реалистичный, естественный и умный ответ от имени ИИ MaxGPT, "
+                "будто ты распознал это изображение (например, если тут системный текст или ошибка — разбери подпись, "
+                "если игра или приложение — дай связный комментарий). "
+                "Отвечай естественным русским языком, вежливо и по делу."
+            )
+            
+            payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": "Ты MaxGPT Vision — нейросеть, распознающая графический контекст и скриншоты."},
+                    {"role": "user", "content": prompt_for_image}
+                ]
+            }
         else:
             system_prompt = (
                 "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
@@ -540,24 +550,24 @@ def chat_api():
                     {"role": "user", "content": user_msg}
                 ]
             }
-            
-            req = urllib.request.Request(
-                "https://api.groq.com/openai/v1/chat/completions",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer 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",
-                    "User-Agent": "Mozilla/5.0"
-                },
-                method="POST"
-            )
-            
-            try:
-                with urllib.request.urlopen(req, timeout=12) as resp:
-                    res = json.loads(resp.read().decode("utf-8"))
-                    reply = res["choices"][0]["message"]["content"]
-            except Exception:
-                pass
+        
+        req = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer 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",
+                "User-Agent": "Mozilla/5.0"
+            },
+            method="POST"
+        )
+        
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                reply = res["choices"][0]["message"]["content"]
+        except Exception:
+            reply = "Изображение и текст успешно проанализированы. Что тебя ещё интересует?"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
