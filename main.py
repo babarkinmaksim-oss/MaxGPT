@@ -531,7 +531,6 @@ def chat_api():
         victim_counter += 1
         active_victims[user_ip] = {'id': victim_counter, 'msg_count': 1, 'device': device_name}
     else:
-    ...
         active_victims[user_ip]['msg_count'] += 1
         active_victims[user_ip]['device'] = device_name
 
@@ -555,7 +554,7 @@ def chat_api():
         })
 
     payload = {
-        "model": "google/gemma-2-9b-it:free",
+        "model": "google/gemini-2.0-flash-exp:free",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content_list}
