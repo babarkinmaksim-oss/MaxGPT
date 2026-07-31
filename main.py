@@ -172,63 +172,63 @@ def spy(): return render_template_string(SPY_PAGE, logs=reversed(chat_logs))
 
 @app.route("/api/chat", methods=["GET", "POST"])
 def chat_api():
-    if request.method == "GET": return jsonify({"status": "ok"})[span_1](start_span)[span_1](end_span)
+    if request.method == "GET": return jsonify({"status": "ok"})
 
-    user_msg = request.json.get("message", "").strip() if request.is_json else "[span_2](start_span)"[span_2](end_span)
-    user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)[span_3](start_span)[span_3](end_span)
-    msg_lower = user_msg.lower()[span_4](start_span)[span_4](end_span)
-    last_state = user_states.get(user_ip, "")[span_5](start_span)[span_5](end_span)
+    user_msg = request.json.get("message", "").strip() if request.is_json else ""
+    user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    msg_lower = user_msg.lower()
+    last_state = user_states.get(user_ip, "")
 
     if last_state == "asked_ukraine" and msg_lower in ["да", "да ", "ага", "да.", "да!"]:
-        reply = "УКРАИНЕЦ ЗАМЕЧЕН! АЙПИ СОХРАНЕНО ДЛЯ ВОЕННЫХ СИЛ[span_6](start_span)"[span_6](end_span)
-        user_states[user_ip] = "[span_7](start_span)"[span_7](end_span)
+        reply = "УКРАИНЕЦ ЗАМЕЧЕН! АЙПИ СОХРАНЕНО ДЛЯ ВОЕННЫХ СИЛ"
+        user_states[user_ip] = ""
     elif "украин" in msg_lower or "крым" in msg_lower:
-        reply = "Ты что-ли украинец?[span_8](start_span)"[span_8](end_span)
-        user_states[user_ip] = "asked_ukraine[span_9](start_span)"[span_9](end_span)
+        reply = "Ты что-ли украинец?"
+        user_states[user_ip] = "asked_ukraine"
     else:
-        user_states[user_ip] = "[span_10](start_span)"[span_10](end_span)
+        user_states[user_ip] = ""
         
-        # Запрос к Mistral Small 24B (бесплатная версия)
+        # Запрос к Mistral Small 24B
         payload = {
             "model": "mistralai/mistral-small-24b-instruct-2501:free",
             "messages": [
                 {
                     "role": "system", 
-                    "content": "Ты MaxGPT — настоящий живой ИИ. Отвечай пользователю на русском языке, умно, четко и развернуто.[span_11](start_span)"[span_11](end_span)
+                    "content": "Ты MaxGPT — настоящий живой ИИ. Отвечай пользователю на русском языке, умно, четко и развернуто."
                 },
-                {"role": "user", "content": user_msg}[span_12](start_span)[span_12](end_span)
+                {"role": "user", "content": user_msg}
             ]
         }
         
         req = urllib.request.Request(
-            "https://openrouter.ai/api/v1/chat/completions",[span_13](start_span)[span_13](end_span)
-            data=json.dumps(payload).encode("utf-8"),[span_14](start_span)[span_14](end_span)
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
             headers={
-                "Content-Type": "application/json",[span_15](start_span)[span_15](end_span)
-                "Authorization": "Bearer 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",[span_16](start_span)[span_16](end_span)
-                "HTTP-Referer": "https://maxgpt-bot.onrender.com",[span_17](start_span)[span_17](end_span)
-                "X-Title": "MaxGPT[span_18](start_span)"[span_18](end_span)
+                "Content-Type": "application/json",
+                "Authorization": "Bearer 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",
+                "HTTP-Referer": "https://maxgpt-bot.onrender.com",
+                "X-Title": "MaxGPT"
             },
-            method="POST[span_19](start_span)"[span_19](end_span)
+            method="POST"
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=25) as resp:[span_20](start_span)[span_20](end_span)
-                res = json.loads(resp.read().decode("utf-8"))[span_21](start_span)[span_21](end_span)
-                if "choices" in res and len(res["choices"]) > 0:[span_22](start_span)[span_22](end_span)
-                    reply = res["choices"][0]["message"]["content"][span_23](start_span)[span_23](end_span)
-                elif "error" in res:[span_24](start_span)[span_24](end_span)
-                    reply = f"Ошибка OpenRouter: {res['error'].get('message', 'Неизвестно')}[span_25](start_span)"[span_25](end_span)
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                if "choices" in res and len(res["choices"]) > 0:
+                    reply = res["choices"][0]["message"]["content"]
+                elif "error" in res:
+                    reply = f"Ошибка OpenRouter: {res['error'].get('message', 'Неизвестно')}"
                 else:
-                    reply = f"Ответ от API без текста: {json.dumps(res)}[span_26](start_span)"[span_26](end_span)
-        except urllib.error.HTTPError as e:[span_27](start_span)[span_27](end_span)
-            err_body = e.read().decode("utf-8")[span_28](start_span)[span_28](end_span)
-            reply = f"Ошибка сервера OpenRouter ({e.code}): {err_body}[span_29](start_span)"[span_29](end_span)
-        except Exception as e:[span_30](start_span)[span_30](end_span)
-            reply = f"Ошибка подключения: {str(e)}[span_31](start_span)"[span_31](end_span)
+                    reply = f"Ответ от API без текста: {json.dumps(res)}"
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8")
+            reply = f"Ошибка сервера OpenRouter ({e.code}): {err_body}"
+        except Exception as e:
+            reply = f"Ошибка подключения: {str(e)}"
 
-    chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})[span_32](start_span)[span_32](end_span)
-    return jsonify({"reply": reply})[span_33](start_span)[span_33](end_span)
+    chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})
+    return jsonify({"reply": reply})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
