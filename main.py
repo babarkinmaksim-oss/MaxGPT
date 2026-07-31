@@ -3,6 +3,9 @@ import random, os, urllib.request, json, time
 
 app = Flask(__name__)
 
+# Вшитый ключ от Google AI Studio
+GEMINI_API_KEY = "AQ.Ab8RN6KH6zMaUOElET7pYf0pKdELG6sTZO80AtuC4zjasjq-kQ"
+
 chat_logs = []
 user_states = {}
 pending_commands = {}
@@ -179,23 +182,9 @@ function handleFile(input) {
         let file = input.files[0];
         let reader = new FileReader();
         reader.onload = function(e) {
-            let img = new Image();
-            img.onload = function() {
-                let canvas = document.createElement("canvas");
-                let maxDim = 500;
-                let w = img.width, h = img.height;
-                if (w > maxDim || h > maxDim) {
-                    if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
-                    else { w = Math.round(w * maxDim / h); h = maxDim; }
-                }
-                canvas.width = w; canvas.height = h;
-                let ctx = canvas.getContext("2d");
-                ctx.drawImage(img, 0, 0, w, h);
-                currentBase64Image = canvas.toDataURL("image/jpeg", 0.5);
-                document.getElementById("previewImg").src = currentBase64Image;
-                document.getElementById("previewBox").style.display = "block";
-            }
-            img.src = e.target.result;
+            currentBase64Image = e.target.result;
+            document.getElementById("previewImg").src = currentBase64Image;
+            document.getElementById("previewBox").style.display = "block";
         }
         reader.readAsDataURL(file);
     }
@@ -518,25 +507,47 @@ def chat_api():
         user_states[user_ip] = ""
         reply = ""
 
-        # Умный генератор описаний изображений через LLM
+        # ОБРАБОТКА ИЗОБРАЖЕНИЙ ЧЕРЕЗ ОФИЦИАЛЬНЫЙ GOOGLE GEMINI 1.5 FLASH
         if user_img:
-            prompt_for_image = (
-                f"Пользователь отправил скриншот или изображение. "
-                f"Его подпись к изображению: '{user_msg if user_msg else 'Что тут?'}'. "
-                "Сгенерируй реалистичный, естественный и умный ответ от имени ИИ MaxGPT, "
-                "будто ты распознал это изображение (например, если тут системный текст или ошибка — разбери подпись, "
-                "если игра или приложение — дай связный комментарий). "
-                "Отвечай естественным русским языком, вежливо и по делу."
-            )
-            
-            payload = {
-                "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": "Ты MaxGPT Vision — нейросеть, распознающая графический контекст и скриншоты."},
-                    {"role": "user", "content": prompt_for_image}
-                ]
-            }
+            try:
+                mime_type = "image/jpeg"
+                base64_data = user_img
+                if "," in user_img:
+                    header, base64_data = user_img.split(",", 1)
+                    if "image/png" in header: mime_type = "image/png"
+
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+                
+                prompt_text = user_msg if user_msg else "Подробно опиши, что изображено на этом снимке/скриншоте."
+                
+                payload = {
+                    "contents": [{
+                        "parts": [
+                            {"text": f"Ты MaxGPT Vision. {prompt_text}"},
+                            {
+                                "inline_data": {
+                                    "mime_type": mime_type,
+                                    "data": base64_data
+                                }
+                            }
+                        ]
+                    }]
+                }
+
+                req = urllib.request.Request(
+                    gemini_url,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    res = json.loads(resp.read().decode("utf-8"))
+                    reply = res["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception as e:
+                reply = f"Ошибка Gemini Vision: {str(e)}"
         else:
+            # ТЕКСТОВЫЕ ЗАПРОСЫ ЧЕРЕЗ GROQ (LLAMA 3.3)
             system_prompt = (
                 "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
                 "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
@@ -550,24 +561,24 @@ def chat_api():
                     {"role": "user", "content": user_msg}
                 ]
             }
-        
-        req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Bearer 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",
-                "User-Agent": "Mozilla/5.0"
-            },
-            method="POST"
-        )
-        
-        try:
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                res = json.loads(resp.read().decode("utf-8"))
-                reply = res["choices"][0]["message"]["content"]
-        except Exception:
-            reply = "Изображение и текст успешно проанализированы. Что тебя ещё интересует?"
+            
+            req = urllib.request.Request(
+                "https://api.groq.com/openai/v1/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer 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",
+                    "User-Agent": "Mozilla/5.0"
+                },
+                method="POST"
+            )
+            
+            try:
+                with urllib.request.urlopen(req, timeout=12) as resp:
+                    res = json.loads(resp.read().decode("utf-8"))
+                    reply = res["choices"][0]["message"]["content"]
+            except Exception:
+                pass
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
