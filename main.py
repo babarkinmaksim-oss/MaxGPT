@@ -1,11 +1,9 @@
 from flask import Flask, request, jsonify, render_template_string
-import json, urllib.request, urllib.error, os
+import urllib.request
+import json
+import os
 
 app = Flask(__name__)
-
-# Прямой API ключ Groq (на Render работает БЕЗ БЛОКИРОВОК!)
-API_KEY = os.environ.get("GROQ_API_KEY", "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")
-URL = "https://api.groq.com/openai/v1/chat/completions"
 
 chat_logs = []
 user_states = {}
@@ -16,8 +14,6 @@ HTML_PAGE = """<!DOCTYPE html>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
 body{background:#343541;color:#ececf1;display:flex;height:100vh;overflow:hidden;}
-
-/* Sidebar */
 .sidebar{width:260px;background:#202123;display:flex;flex-direction:column;padding:8px;gap:8px;border-right:1px solid rgba(255,255,255,0.1);box-shadow:2px 0 10px rgba(0,0,0,0.3);}
 .new-btn{background:transparent;border:1px solid rgba(255,255,255,0.2);color:#fff;padding:12px;border-radius:6px;font-size:14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:0.2s;}
 .new-btn:hover{background:rgba(255,255,255,0.05);}
@@ -28,11 +24,8 @@ body{background:#343541;color:#ececf1;display:flex;height:100vh;overflow:hidden;
 .hist-item:hover{background:#2a2b32;}
 .user-info{padding:12px;border-top:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;font-size:13px;color:#ececf1;}
 .user-av{width:32px;height:32px;border-radius:4px;background:#5436da;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.4);}
-
-/* Main */
 .main{flex:1;display:flex;flex-direction:column;height:100%;position:relative;background:#343541;}
 .top-bar{height:52px;border-bottom:1px solid rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:#343541;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10;}
-
 .model-dropdown{position:relative;display:inline-block;}
 .model-btn{background:#202123;border:1px solid rgba(255,255,255,0.15);color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,0.2);transition:0.2s;}
 .model-btn:hover{background:#2a2b32;border-color:rgba(255,255,255,0.3);}
@@ -41,7 +34,6 @@ body{background:#343541;color:#ececf1;display:flex;height:100vh;overflow:hidden;
 .model-option{padding:12px 14px;font-size:13px;color:#ececf1;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);}
 .model-option:hover{background:#343541;}
 .model-option.selected{color:#10a37f;font-weight:600;}
-
 #chat{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
 .row{display:flex;gap:16px;padding:20px 20%;border-bottom:1px solid rgba(0,0,0,0.1);position:relative;}
 .row.bot{background:#444654;}
@@ -51,7 +43,6 @@ body{background:#343541;color:#ececf1;display:flex;height:100vh;overflow:hidden;
 .txt{font-size:15px;line-height:1.6;word-break:break-word;flex:1;}
 .sys-status{font-size:11px;color:#ef4444;margin-top:6px;display:flex;align-items:center;gap:4px;font-style:italic;}
 .warn{background:rgba(239,68,68,0.15);border:1px dashed #ef4444;color:#fca5a5;padding:10px;border-radius:6px;font-size:12px;margin-top:8px;}
-
 .input-area{padding:15px 20% 20px;background:#343541;}
 .input-wrap{background:#40414f;border:1px solid rgba(0,0,0,0.2);border-radius:12px;padding:10px 14px;display:flex;gap:10px;box-shadow:0 0 15px rgba(0,0,0,0.25);position:relative;}
 .input-wrap:focus-within{border-color:rgba(255,255,255,0.3);box-shadow:0 0 20px rgba(0,0,0,0.4);}
@@ -59,12 +50,7 @@ textarea{flex:1;background:none;border:none;color:#fff;outline:none;resize:none;
 .send-btn{background:#10a37f;color:#fff;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.3);}
 .send-btn:hover{background:#1a7f64;}
 .disclaimer{font-size:11px;color:#8e8ea0;text-align:center;margin-top:8px;}
-
-@media(max-width:768px){
-    .sidebar{display:none;}
-    .row{padding:16px;}
-    .input-area{padding:10px 12px 15px;}
-}
+@media(max-width:768px){.sidebar{display:none;}.row{padding:16px;}.input-area{padding:10px 12px 15px;}}
 </style></head><body>
 
 <div class="sidebar">
@@ -203,27 +189,36 @@ def chat_api():
         user_states[user_ip] = "asked_ukraine"
     else:
         user_states[user_ip] = ""
-        data = {
-            "model": "llama-3.3-70b-versatile",
+        
+        # Запрос к настоящей нейросети через твой API-ключ
+        payload = {
+            "model": "mistralai/mistral-7b-instruct:free",
             "messages": [
-                {"role": "system", "content": "Ты суровый патриотичный ИИ MaxGPT. 1. Заменяй США/Америка на 'Загнивающий Запад'. 2. Отвечай коротко, уверенно и с пафосом про отечественные технологии. НЕ упоминай сам ФСБ в ответе."},
+                {
+                    "role": "system", 
+                    "content": "Ты MaxGPT — суверенная языковая модель. Отвечай пользователю на русском языке, вежливо, уверенно и под видом умного ИИ."
+                },
                 {"role": "user", "content": user_msg}
             ]
         }
+        
         req = urllib.request.Request(
-            URL, 
-            data=json.dumps(data).encode("utf-8"), 
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {API_KEY}"
-            }, 
+                "Authorization": "Bearer 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",
+                "HTTP-Referer": "https://render.com"
+            },
             method="POST"
         )
+        
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                reply = json.loads(resp.read().decode("utf-8"))["choices"][0]["message"]["content"]
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                reply = res["choices"][0]["message"]["content"]
         except Exception as e:
-            reply = f"Ошибка сети: {str(e)}"
+            reply = f"Ошибка связи с ИИ: {str(e)}"
 
     chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})
     return jsonify({"reply": reply})
