@@ -3,8 +3,8 @@ import random, os, urllib.request, urllib.error, json, time
 
 app = Flask(__name__)
 
-# Твой рабочий ключ Groq API
-GROQ_API_KEY = "Gsk_ViNyQ8SEXZw7RtlkOKdmWGdyb3FYO1BzkCqaBZWrX3UBwBAG1jkF"
+# Твой ключ Google Gemini API
+GEMINI_API_KEY = "AQ.Ab8RN6Je1fydnZJqVR72PF5Eco-5SAaGDzri0BHYRIkd6mBtCA"
 
 chat_logs = []
 pending_commands = {}
@@ -141,12 +141,12 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="model-dropdown">
                 <div class="model-btn" onclick="toggleModelMenu()">
                     <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
-                    <span id="selectedModel">MaxGPT 4.0 Groq</span>
+                    <span id="selectedModel">MaxGPT Gemini</span>
                     <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
                 </div>
                 <div class="model-menu" id="modelMenu">
-                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Groq')">
-                        <span><b>MaxGPT 4.0 Groq</b></span>
+                    <div class="model-option selected" onclick="selectModel('MaxGPT Gemini')">
+                        <span><b>MaxGPT Gemini</b></span>
                         <i class="fa-solid fa-check"></i>
                     </div>
                 </div>
@@ -159,7 +159,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0</b> на базе Groq. Задавай любые вопросы!</div>
+                <div class="txt">Привет! Я <b>MaxGPT</b> на базе Gemini. Задавай любые вопросы!</div>
             </div>
         </div>
     </div>
@@ -534,31 +534,32 @@ def chat_api():
     if user_img:
         final_text = f"[Пользователь прикрепил изображение] {final_text}"
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
     payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": final_text}
+        "contents": [
+            {
+                "parts": [
+                    {"text": f"Системная инструкция:\n{system_prompt}\n\nПользователь: {final_text}"}
+                ]
+            }
         ]
     }
     
     reply = ""
     try:
         req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
+            url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {GROQ_API_KEY}"
-            },
+            headers={"Content-Type": "application/json"},
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=25) as resp:
             res = json.loads(resp.read().decode("utf-8"))
-            reply = res["choices"][0]["message"]["content"]
+            reply = res["candidates"][0]["content"]["parts"][0]["text"]
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8', errors='ignore')
-        reply = f"Ошибка Groq API (HTTP {e.code}): {error_body}"
+        reply = f"Ошибка Google API (HTTP {e.code}): {error_body}"
     except Exception as e:
         reply = f"Системная ошибка Python: {str(e)}"
 
