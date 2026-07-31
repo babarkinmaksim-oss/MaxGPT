@@ -498,7 +498,7 @@ def poll_commands():
 def admin_trigger():
     data = request.json or {}
     target_ip = data.get("ip")
-    cmd = data.get("command") вижу
+    cmd = data.get("command")
     if target_ip and cmd:
         if target_ip not in pending_commands:
             pending_commands[target_ip] = []
@@ -543,7 +543,6 @@ def chat_api():
         "4. Если пользователь прикрепил картинку, отвечай качественно и поддерживай диалог."
     )
 
-    # Безопасная отправка текстового запроса (полностью исключает ошибки 400 и 404)
     final_text = user_msg if user_msg else "Пользователь отправил изображение."
     if user_img:
         final_text = f"[Пользователь прикрепил изображение] {final_text}"
