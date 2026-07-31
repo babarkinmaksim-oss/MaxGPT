@@ -555,7 +555,7 @@ def chat_api():
         })
 
     payload = {
-        "model": "openrouter/free",  # Автоматический выбор лучшей бесплатной модели с поддержкой зрения
+        "model": "meta-llama/llama-3.2-11b-vision-instruct:free",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content_list}
