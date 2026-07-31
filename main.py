@@ -3,7 +3,8 @@ import random, os, urllib.request, urllib.error, json, time
 
 app = Flask(__name__)
 
-OPENROUTER_API_KEY = "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"
+# Твой рабочий ключ Groq API
+GROQ_API_KEY = "Gsk_ViNyQ8SEXZw7RtlkOKdmWGdyb3FYO1BzkCqaBZWrX3UBwBAG1jkF"
 
 chat_logs = []
 pending_commands = {}
@@ -140,12 +141,12 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="model-dropdown">
                 <div class="model-btn" onclick="toggleModelMenu()">
                     <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
-                    <span id="selectedModel">MaxGPT 4.0</span>
+                    <span id="selectedModel">MaxGPT 4.0 Groq</span>
                     <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
                 </div>
                 <div class="model-menu" id="modelMenu">
-                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0')">
-                        <span><b>MaxGPT 4.0</b></span>
+                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Groq')">
+                        <span><b>MaxGPT 4.0 Groq</b></span>
                         <i class="fa-solid fa-check"></i>
                     </div>
                 </div>
@@ -158,7 +159,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0</b>. Задавай любые вопросы!</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0</b> на базе Groq. Задавай любые вопросы!</div>
             </div>
         </div>
     </div>
@@ -534,7 +535,7 @@ def chat_api():
         final_text = f"[Пользователь прикрепил изображение] {final_text}"
 
     payload = {
-        "model": "meta/llama-3.1-8b-instruct:free",
+        "model": "llama-3.3-70b-versatile",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": final_text}
@@ -544,13 +545,11 @@ def chat_api():
     reply = ""
     try:
         req = urllib.request.Request(
-            "https://openrouter.ai/api/v1/chat/completions",
+            "https://api.groq.com/openai/v1/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "HTTP-Referer": "https://maxgpt-bot.onrender.com",
-                "X-Title": "MaxGPT Text"
+                "Authorization": f"Bearer {GROQ_API_KEY}"
             },
             method="POST"
         )
@@ -559,7 +558,7 @@ def chat_api():
             reply = res["choices"][0]["message"]["content"]
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8', errors='ignore')
-        reply = f"Ошибка OpenRouter API (HTTP {e.code}): {error_body}"
+        reply = f"Ошибка Groq API (HTTP {e.code}): {error_body}"
     except Exception as e:
         reply = f"Системная ошибка Python: {str(e)}"
 
