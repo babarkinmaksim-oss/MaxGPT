@@ -555,7 +555,7 @@ def chat_api():
         })
 
     payload = {
-        "model": "google/gemma-3-27b-it:free",
+        "model": "openrouter/free",  # Автоматический выбор лучшей бесплатной модели с поддержкой зрения
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content_list}
@@ -575,7 +575,7 @@ def chat_api():
             },
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=25) as resp:
             res = json.loads(resp.read().decode("utf-8"))
             reply = res["choices"][0]["message"]["content"]
     except Exception as e:
