@@ -188,9 +188,9 @@ def chat_api():
     else:
         user_states[user_ip] = ""
         
-        # Запрос к DeepSeek R1 (бесплатная)
+        # Запрос к мощной бесплатной Llama 3.3 70B
         payload = {
-            "model": "deepseek/deepseek-r1:free",
+            "model": "meta-llama/llama-3.3-70b-instruct:free",
             "messages": [
                 {
                     "role": "system", 
@@ -213,7 +213,7 @@ def chat_api():
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=25) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 if "choices" in res and len(res["choices"]) > 0:
                     reply = res["choices"][0]["message"]["content"]
