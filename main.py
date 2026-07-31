@@ -42,7 +42,6 @@ def parse_user_agent(ua_string):
     else:
         browser = "Браузер"
 
-    # Сначала проверяем на планшет, чтобы Android-планшеты не определялись как смартфоны
     if "ipad" in ua or "tablet" in ua or ("android" in ua and "mobile" not in ua):
         device_type = "Планшет"
         icon = "fa-tablet-screen-button"
@@ -191,7 +190,7 @@ HTML_PAGE = """<!DOCTYPE html>
         }
     </style>
 </head>
-<body onclick="unlockAudio(); customAudio.play().then(() => { customAudio.pause(); }).catch(e=>{});">
+<body onclick="unlockAudio(); playCustomSound.preload='auto';">
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
@@ -297,9 +296,6 @@ let audioCtx = null;
 let currentChatId = null;
 let isGenerating = false;
 
-let customAudio = new Audio('/mysound.mp3');
-customAudio.preload = 'auto';
-
 function unlockAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -310,13 +306,10 @@ function unlockAudio() {
 function playCustomSound() {
     unlockAudio();
     try {
-        customAudio.currentTime = 0;
-        let p = customAudio.play();
-        if (p !== undefined) {
-            p.catch(error => {
-                console.log("Автовоспроизведение заблокировано браузером");
-            });
-        }
+        let audio = new Audio('/mysound.mp3');
+        audio.play().catch(e => {
+            console.log("Браузер заблокировал звук, требуется клик на странице");
+        });
     } catch(e) {}
 }
 
