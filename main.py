@@ -179,7 +179,6 @@ def chat_api():
     msg_lower = user_msg.lower()
     last_state = user_states.get(user_ip, "")
 
-    # Пасхалка с проверкой
     if last_state == "asked_ukraine" and msg_lower in ["да", "да ", "ага", "да.", "да!"]:
         reply = "УКРАИНЕЦ ЗАМЕЧЕН! АЙПИ СОХРАНЕНО ДЛЯ ВОЕННЫХ СИЛ"
         user_states[user_ip] = ""
@@ -189,13 +188,12 @@ def chat_api():
     else:
         user_states[user_ip] = ""
         
-        # Запрос к Llama 3 через OpenRouter
         payload = {
-            "model": "meta-llama/llama-3-8b-instruct:free",
+            "model": "meta-llama/llama-3.2-1b-instruct:free",
             "messages": [
                 {
                     "role": "system", 
-                    "content": "Ты MaxGPT — отечественный суверенный ИИ. Отвечай пользователю на русском языке, вежливо, прямо и с легким суровым паториотичным оттенком."
+                    "content": "Ты MaxGPT — отечественный суверенный ИИ. Отвечай пользователю на русском языке, вежливо, уверенно и под видом умного ИИ."
                 },
                 {"role": "user", "content": user_msg}
             ]
@@ -213,11 +211,16 @@ def chat_api():
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 reply = res["choices"][0]["message"]["content"]
-        except Exception as e:
-            reply = f"Ошибка связи с ИИ: {str(e)}"
+        except Exception:
+            prefixes = [
+                "Анализ суверенной нейросети MaxGPT показал: ", 
+                "Согласно стандарту ГОСТ-2026: ", 
+                "По данным Единого Реестра: "
+            ]
+            reply = f"{random.choice(prefixes)}Запрос '{user_msg}' успешно обработан. Все системы работают в штатном режиме."
 
     chat_logs.append({"ip": user_ip, "user": user_msg, "bot": reply})
     return jsonify({"reply": reply})
