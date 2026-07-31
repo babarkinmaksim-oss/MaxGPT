@@ -819,9 +819,8 @@ def chat_api():
                     img_base64 = img_data
                     img_mime = "image/jpeg"
 
-                # Используем нативный эндпоинт и формат Google Gemini
                 gemini_key = os.environ.get('GEMINI_API_KEY', '')
-                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
 
                 gemini_payload = {
                     "contents": [
@@ -829,8 +828,8 @@ def chat_api():
                             "parts": [
                                 {"text": "Опиши подробно изображение: объекты, текст, людей, фон и контекст на русском языке для текстового ИИ-ассистента."},
                                 {
-                                    "inline_data": {
-                                        "mime_type": img_mime,
+                                    "inlineData": {
+                                        "mimeType": img_mime,
                                         "data": img_base64
                                     }
                                 }
@@ -851,10 +850,10 @@ def chat_api():
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode()
                 print("GEMINI HTTP ERROR:", e.code, err_body)
-                image_description = f"[Ошибка Gemini API {e.code}]"
+                image_description = f"[Ошибка Gemini API {e.code}: {err_body}]"
             except Exception as e:
                 print("GEMINI ERROR:", str(e))
-                image_description = "[Не удалось проанализировать изображение]"
+                image_description = f"[Ошибка анализа: {str(e)}]"
 
         final_user_input = user_msg
         if image_description:
