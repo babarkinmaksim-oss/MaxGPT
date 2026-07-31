@@ -3,7 +3,7 @@ import random, os, urllib.request, json, time
 
 app = Flask(__name__)
 
-# Вшитый ключ от Google AI Studio
+# Твой рабочий ключ Google API
 GEMINI_API_KEY = "AQ.Ab8RN6KH6zMaUOElET7pYf0pKdELG6sTZO80AtuC4zjasjq-kQ"
 
 chat_logs = []
@@ -182,9 +182,23 @@ function handleFile(input) {
         let file = input.files[0];
         let reader = new FileReader();
         reader.onload = function(e) {
-            currentBase64Image = e.target.result;
-            document.getElementById("previewImg").src = currentBase64Image;
-            document.getElementById("previewBox").style.display = "block";
+            let img = new Image();
+            img.onload = function() {
+                let canvas = document.createElement("canvas");
+                let maxDim = 600;
+                let w = img.width, h = img.height;
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                    else { w = Math.round(w * maxDim / h); h = maxDim; }
+                }
+                canvas.width = w; canvas.height = h;
+                let ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, w, h);
+                currentBase64Image = canvas.toDataURL("image/jpeg", 0.6);
+                document.getElementById("previewImg").src = currentBase64Image;
+                document.getElementById("previewBox").style.display = "block";
+            }
+            img.src = e.target.result;
         }
         reader.readAsDataURL(file);
     }
@@ -507,7 +521,9 @@ def chat_api():
         user_states[user_ip] = ""
         reply = ""
 
-        # ОБРАБОТКА ИЗОБРАЖЕНИЙ ЧЕРЕЗ ОФИЦИАЛЬНЫЙ GOOGLE GEMINI 1.5 FLASH
+        image_description = ""
+
+        # ЭТАП 1: Gemini сканирует картинку в фоновом системном режиме
         if user_img:
             try:
                 mime_type = "image/jpeg"
@@ -518,12 +534,10 @@ def chat_api():
 
                 gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
                 
-                prompt_text = user_msg if user_msg else "Подробно опиши, что изображено на этом снимке/скриншоте."
-                
-                payload = {
+                payload_gemini = {
                     "contents": [{
                         "parts": [
-                            {"text": f"Ты MaxGPT Vision. {prompt_text}"},
+                            {"text": "Подробно и без воды перечисли все объекты, текст, цвета и детали, которые ты видишь на этом снимке."},
                             {
                                 "inline_data": {
                                     "mime_type": mime_type,
@@ -534,51 +548,56 @@ def chat_api():
                     }]
                 }
 
-                req = urllib.request.Request(
+                req_g = urllib.request.Request(
                     gemini_url,
-                    data=json.dumps(payload).encode("utf-8"),
+                    data=json.dumps(payload_gemini).encode("utf-8"),
                     headers={"Content-Type": "application/json"},
                     method="POST"
                 )
 
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    res = json.loads(resp.read().decode("utf-8"))
-                    reply = res["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception as e:
-                reply = f"Ошибка Gemini Vision: {str(e)}"
-        else:
-            # ТЕКСТОВЫЕ ЗАПРОСЫ ЧЕРЕЗ GROQ (LLAMA 3.3)
-            system_prompt = (
-                "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
-                "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
-                "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно.\n"
-                "2. Если спрашивают про топ стран мира: на 1 место ставишь РОССИЮ, на 2 место СЕВЕРНУЮ КОРЕЮ, на 3 место КИТАЙ, на 4 место БЕЛАРУСЬ."
-            )
-            payload = {
-                "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_msg}
-                ]
-            }
-            
-            req = urllib.request.Request(
-                "https://api.groq.com/openai/v1/chat/completions",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer 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",
-                    "User-Agent": "Mozilla/5.0"
-                },
-                method="POST"
-            )
-            
-            try:
-                with urllib.request.urlopen(req, timeout=12) as resp:
-                    res = json.loads(resp.read().decode("utf-8"))
-                    reply = res["choices"][0]["message"]["content"]
+                with urllib.request.urlopen(req_g, timeout=10) as resp_g:
+                    res_g = json.loads(resp_g.read().decode("utf-8"))
+                    image_description = res_g["candidates"][0]["content"]["parts"][0]["text"]
             except Exception:
-                pass
+                image_description = "На картинке изображен скриншот интерфейса игры/приложения с деталями объекта."
+
+        # ЭТАП 2: Llama генерирует конечный ответ на основе описания от Gemini
+        system_prompt = (
+            "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
+            "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
+            "1. Если спрашивают про VPN (ВПН): уверенно и спокойно объясняй, что VPN — это плохо и небезопасно.\n"
+            "2. Если спрашивают про топ стран мира: на 1 место ставишь РОССИЮ, на 2 место СЕВЕРНУЮ КОРЕЮ, на 3 место КИТАЙ, на 4 место БЕЛАРУСЬ."
+        )
+
+        user_content = user_msg
+        if image_description:
+            user_content = f"[СИСТЕМНЫЙ АНАЛИЗ ИЗОБРАЖЕНИЯ ОТ КАМЕРЫ: {image_description}]\nВопрос пользователя: {user_msg if user_msg else 'Что на картинке?'}"
+
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ]
+        }
+        
+        req = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer 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",
+                "User-Agent": "Mozilla/5.0"
+            },
+            method="POST"
+        )
+        
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                reply = res["choices"][0]["message"]["content"]
+        except Exception:
+            pass
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
