@@ -133,10 +133,13 @@ HTML_PAGE = """<!DOCTYPE html>
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         
         .row.bot { background: var(--bot-bg); }
-        .msg-container { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-        .bot-author { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+        .msg-container { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; user-select: text; -webkit-user-select: text; }
+        .bot-author { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; justify-content: space-between; }
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
-        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); }
+        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); user-select: text; -webkit-user-select: text; }
+
+        .copy-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 6px; transition: 0.2s; }
+        .copy-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
 
         .typing-indicator { display: flex; align-items: center; gap: 5px; padding: 4px 0; }
         .typing-dot { width: 8px; height: 8px; background: #a78bfa; border-radius: 50%; opacity: 0.4; animation: blinkDot 1.4s infinite ease-in-out both; }
@@ -276,7 +279,10 @@ HTML_PAGE = """<!DOCTYPE html>
         <div class="row bot">
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
-                <div class="bot-author">MaxGPT AI</div>
+                <div class="bot-author">
+                    <span>MaxGPT AI</span>
+                    <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
             </div>
         </div>
@@ -303,14 +309,11 @@ function unlockAudio() {
     }
 }
 
-// Воспроизведение твоего .wav файла из корневой папки
 function playCustomSound() {
     unlockAudio();
     try {
         let audio = new Audio('/mysound.wav');
-        audio.play().catch(e => {
-            console.log("Браузер заблокировал звук, требуется клик на странице");
-        });
+        audio.play().catch(e => {});
     } catch(e) {}
 }
 
@@ -341,6 +344,22 @@ function playBeepSound() {
         o.connect(g); g.connect(audioCtx.destination);
         o.start(); o.stop(audioCtx.currentTime + 0.4);
     } catch(e) {}
+}
+
+function copyText(btn) {
+    let container = btn.closest('.msg-container');
+    let txtEl = container.querySelector('.txt');
+    let textToCopy = txtEl.innerText;
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        let originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check" style="color:#10b981;"></i> Скопировано';
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+        }, 2000);
+    }).catch(err => {
+        console.error('Ошибка копирования', err);
+    });
 }
 
 function showCameraPromptCustom() {
@@ -435,7 +454,10 @@ async function startNewChat() {
         <div class="row bot">
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
-                <div class="bot-author">MaxGPT AI</div>
+                <div class="bot-author">
+                    <span>MaxGPT AI</span>
+                    <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
             </div>
         </div>`;
@@ -454,7 +476,10 @@ async function switchChat(chatId) {
         <div class="row bot">
             <div class="max-av-sq">МАХ</div>
             <div class="msg-container">
-                <div class="bot-author">MaxGPT AI</div>
+                <div class="bot-author">
+                    <span>MaxGPT AI</span>
+                    <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
             </div>
         </div>`;
@@ -462,7 +487,7 @@ async function switchChat(chatId) {
     if (d.messages) {
         d.messages.forEach(m => {
             html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}</div></div></div>`;
-            html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${m.bot}</div></div></div>`;
+            html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span><button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button></div><div class="txt">${m.bot}</div></div></div>`;
         });
     }
     
@@ -528,7 +553,17 @@ async function send(){
         let typingEl = document.getElementById(typingId);
         if(typingEl) typingEl.remove();
 
-        c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
+        c.innerHTML += `
+            <div class="row bot">
+                <div class="max-av-sq">МАХ</div>
+                <div class="msg-container">
+                    <div class="bot-author">
+                        <span>MaxGPT AI</span>
+                        <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                    </div>
+                    <div class="txt">${d.reply}</div>
+                </div>
+            </div>`;
         c.scrollTop = c.scrollHeight;
 
         if (d.trigger_sound) {
@@ -698,7 +733,6 @@ def get_clean_ip():
         return request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
     return request.remote_addr
 
-# ЯВНЫЙ МАРШРУТ ДЛЯ ПЕРЕДАЧИ ТВОЕГО WAV-ФАЙЛА ИЗ КОРНЯ ПРОЕКТА
 @app.route("/mysound.wav")
 def serve_audio():
     return send_from_directory(os.getcwd(), "mysound.wav")
@@ -855,7 +889,7 @@ def chat_api():
         trigger_sound = random.random() < 0.2
 
         return jsonify({"reply": reply, "chat_id": chat_id, "trigger_sound": trigger_sound})
-    except Exception as e:
+    exceptException as e:
         return jsonify({"reply": "Произошла внутренняя ошибка сервера.", "chat_id": chat_id if 'chat_id' in locals() else ""})
 
 if __name__ == "__main__":
