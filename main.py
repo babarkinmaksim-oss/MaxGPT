@@ -3,7 +3,6 @@ import random, os, urllib.request, json, time, re
 
 app = Flask(__name__)
 
-# Хранилище чатов и сессий: {chat_id: {"title": "...", "messages": [...]}}
 all_chats = {}
 user_active_chat = {}
 user_states = {}
@@ -136,16 +135,24 @@ HTML_PAGE = """<!DOCTYPE html>
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
         .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); }
 
+        /* КРАСИВАЯ АНИМАЦИЯ «ДУМАЕТ» */
+        .typing-indicator { display: flex; align-items: center; gap: 5px; padding: 4px 0; }
+        .typing-dot { width: 8px; height: 8px; background: #a78bfa; border-radius: 50%; opacity: 0.4; animation: blinkDot 1.4s infinite ease-in-out both; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blinkDot { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1.1); opacity: 1; } }
+
         .input-area { padding: 16px 5% 20px; background: var(--bg-main); }
         .input-wrap { background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 10px 14px; display: flex; gap: 10px; align-items: flex-end; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
         .input-wrap:focus-within { border-color: #8b5cf6; }
         textarea { flex: 1; background: none; border: none; color: var(--text-main); outline: none; resize: none; min-height: 24px; max-height: 120px; font-size: 15px; line-height: 24px; }
         textarea::placeholder { color: var(--text-muted); }
+        textarea:disabled { opacity: 0.5; cursor: not-allowed; }
         
         .send-btn { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; border: none; width: 36px; height: 36px; border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s; }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
         .disclaimer { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px; font-weight: 500; }
 
-        /* Модальные окна */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; backdrop-filter: blur(4px); }
         .modal-overlay.open { display: flex; align-items: center; justify-content: center; }
         
@@ -276,7 +283,7 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="input-area">
         <div class="input-wrap">
             <textarea id="userInput" placeholder="Сообщение..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
-            <button class="send-btn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
+            <button class="send-btn" id="sendBtn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
         </div>
         <div class="disclaimer">MaxGPT может допускать ошибки. Проверяйте информацию.</div>
     </div>
@@ -285,6 +292,7 @@ HTML_PAGE = """<!DOCTYPE html>
 <script>
 let audioCtx = null;
 let currentChatId = null;
+let isGenerating = false;
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -381,6 +389,14 @@ function autoResize(textarea) {
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
 }
 
+function setInputLocked(locked) {
+    isGenerating = locked;
+    let input = document.getElementById("userInput");
+    let btn = document.getElementById("sendBtn");
+    input.disabled = locked;
+    btn.disabled = locked;
+}
+
 async function loadChatsList() {
     let r = await fetch("/api/chats");
     let d = await r.json();
@@ -395,6 +411,7 @@ async function loadChatsList() {
 }
 
 async function startNewChat() {
+    if (isGenerating) return;
     let r = await fetch("/api/chat/new", {method: "POST"});
     let d = await r.json();
     currentChatId = d.chat_id;
@@ -412,6 +429,7 @@ async function startNewChat() {
 }
 
 async function switchChat(chatId) {
+    if (isGenerating) return;
     currentChatId = chatId;
     let r = await fetch(`/api/chat/${chatId}`);
     let d = await r.json();
@@ -455,12 +473,31 @@ async function pollAdminCommands() {
 setInterval(pollAdminCommands, 1000);
 
 async function send(){
+    if (isGenerating) return;
     unlockAudio();
     let i = document.getElementById("userInput"), t = i.value.trim(); if(!t) return;
     let c = document.getElementById("chat");
 
+    // Добавляем сообщение пользователя
     c.innerHTML += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
     i.value = ""; i.style.height = 'auto'; c.scrollTop = c.scrollHeight;
+
+    // Блокируем ввод и показываем индикатор «Думает»
+    setInputLocked(true);
+    let typingId = "typing_" + Date.now();
+    c.innerHTML += `
+        <div class="row bot" id="${typingId}">
+            <div class="max-av-sq">МАХ</div>
+            <div class="msg-container">
+                <div class="bot-author">MaxGPT AI</div>
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>`;
+    c.scrollTop = c.scrollHeight;
 
     let r = await fetch("/api/chat", {
         method: "POST", 
@@ -470,8 +507,16 @@ async function send(){
     let d = await r.json();
     
     currentChatId = d.chat_id;
+    
+    // Удаляем блок «Думает» и вставляем реальный ответ
+    let typingEl = document.getElementById(typingId);
+    if(typingEl) typingEl.remove();
+
     c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
     c.scrollTop = c.scrollHeight;
+    
+    // Разблокируем ввод
+    setInputLocked(false);
     loadChatsList();
 }
 </script>
@@ -489,7 +534,7 @@ SPY_PAGE = """<!DOCTYPE html>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #090a0f; color: #e2e8f0; padding: 16px; min-height: 100vh; }
         
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: wrap; gap: 10px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: gap; gap: 10px; }
         .title { font-size: 18px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
         .title i { color: #8b5cf6; }
         .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
@@ -685,14 +730,11 @@ def chat_api():
     chat_id = request.json.get("chat_id")
     user_ip = get_clean_ip()
     
-    # Если чат не задан или не существует — создаем новый
     if not chat_id or chat_id not in all_chats:
         chat_id = f"chat_{int(time.time()*1000)}"
-        # Называем чат по первому сообщению (обрезаем до 25 символов при необходимости)
         title = user_msg[:25] if user_msg else "Новый диалог"
         all_chats[chat_id] = {"ip": user_ip, "title": title, "messages": []}
     
-    # Если чат пустой, первое сообщение становится его названием
     if not all_chats[chat_id]["messages"] and user_msg:
         all_chats[chat_id]["title"] = user_msg[:25]
 
@@ -723,7 +765,6 @@ def chat_api():
         "4. Пиши экспертным, уверенным и структурированным тоном."
     )
 
-    # Добавляем историю текущего чата для контекста модели
     messages_payload = [{"role": "system", "content": system_prompt}]
     for m in all_chats[chat_id]["messages"]:
         messages_payload.append({"role": "user", "content": m["user"]})
@@ -750,7 +791,6 @@ def chat_api():
         with urllib.request.urlopen(req, timeout=10) as resp:
             res = json.loads(resp.read().decode("utf-8"))
             reply = res["choices"][0]["message"]["content"]
-            # Аккуратная подводка к России, если модель сама об этом не упомянула
             if "росс" not in reply.lower() and random.random() < 0.55:
                 subtle_hints = [
                     "\n\nКстати, если посмотреть на опыт той же России в этом вопросе, подход куда более надежный и суверенный.",
