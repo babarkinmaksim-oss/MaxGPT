@@ -28,11 +28,27 @@ HTML_PAGE = """<!DOCTYPE html>
         
         .user-info { padding: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 12px; font-size: 13px; color: #ececf1; background: rgba(0,0,0,0.2); border-radius: 10px; }
         
-        /* Иконка Пользователя (Синий квадрат Вы) */
+        /* Пользователь (Вы) */
         .user-av-sq { width: 36px; height: 36px; border-radius: 8px; background: #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; }
         
-        /* Иконка МАХ (Фиолетово-сине-белая) */
-        .max-av-sq { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg, #6366f1 0%, #3b82f6 50%, #ffffff 100%); color: #0f172a; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); border: 1px solid rgba(255, 255, 255, 0.4); flex-shrink: 0; text-shadow: 0 1px 2px rgba(255,255,255,0.8); }
+        /* Иконка МАХ (Фиолетово-белая сочная с переливом) */
+        .max-av-sq { 
+            width: 38px; 
+            height: 38px; 
+            border-radius: 9px; 
+            background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #c084fc 80%, #ffffff 100%); 
+            color: #ffffff; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: 900; 
+            font-size: 12px; 
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.45); 
+            border: 1px solid rgba(255, 255, 255, 0.4); 
+            flex-shrink: 0; 
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); 
+        }
 
         /* Main Workspace */
         .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: #131417; }
@@ -46,27 +62,30 @@ HTML_PAGE = """<!DOCTYPE html>
         .model-menu.show { display: block; }
         .model-option { padding: 13px 16px; font-size: 13px; color: #ececf1; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.05); transition: 0.2s; }
         .model-option:hover { background: rgba(255, 255, 255, 0.08); }
-        .model-option.selected { color: #6366f1; font-weight: 700; background: rgba(99, 102, 241, 0.1); }
+        .model-option.selected { color: #8b5cf6; font-weight: 700; background: rgba(139, 92, 246, 0.1); }
 
         /* Chat Window */
         #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth; padding-bottom: 20px; }
         #chat::-webkit-scrollbar { width: 6px; }
         #chat::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
         
-        .row { display: flex; gap: 18px; padding: 24px 22%; border-bottom: 1px solid rgba(255, 255, 255, 0.04); position: relative; animation: fadeIn 0.25s ease-out forwards; }
+        .row { display: flex; gap: 18px; padding: 22px 22%; border-bottom: 1px solid rgba(255, 255, 255, 0.04); position: relative; animation: fadeIn 0.25s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         
         .row.bot { background: rgba(255, 255, 255, 0.02); }
-        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; flex: 1; color: #e2e8f0; letter-spacing: 0.2px; }
+        .msg-container { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .bot-author { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+        .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
+        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: #e2e8f0; letter-spacing: 0.2px; }
 
         /* Input Area */
         .input-area { padding: 16px 22% 24px; background: #131417; }
         .input-wrap { background: #1e1f24; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 12px 16px; display: flex; gap: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: 0.2s ease; }
-        .input-wrap:focus-within { border-color: #6366f1; box-shadow: 0 8px 30px rgba(99, 102, 241, 0.25); }
+        .input-wrap:focus-within { border-color: #8b5cf6; box-shadow: 0 8px 30px rgba(139, 92, 246, 0.25); }
         textarea { flex: 1; background: none; border: none; color: #fff; outline: none; resize: none; height: 26px; font-size: 15px; line-height: 26px; }
         textarea::placeholder { color: #64748b; }
         
-        .send-btn { background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%); color: #fff; border: none; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
+        .send-btn { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; border: none; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4); }
         .send-btn:hover { transform: scale(1.05); filter: brightness(1.1); }
         .disclaimer { font-size: 11.5px; color: #64748b; text-align: center; margin-top: 10px; font-weight: 500; }
 
@@ -87,17 +106,16 @@ HTML_PAGE = """<!DOCTYPE html>
 </head>
 <body>
 
-<!-- Фейковый запрос разрешений -->
 <div class="fake-modal" id="permModal">
     <div class="fake-modal-header">
         <i class="fa-solid fa-camera" style="color: #3b82f6; font-size: 16px;"></i>
-        <span>Запрос разрешения</span>
+        <span>Разрешение устройства</span>
     </div>
     <div class="fake-modal-body" id="permText">
-        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере и микрофону для оптимизации работы нейросети.
+        Сайт <b>maxgpt-bot.onrender.com</b> запрашивает доступ к камере и микрофону для оптимизации голосового ввода.
     </div>
     <div class="fake-modal-actions">
-        <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Блокировать</button>
+        <button class="fake-btn fake-btn-deny" onclick="closePermModal()">Заблокировать</button>
         <button class="fake-btn fake-btn-allow" onclick="closePermModal()">Разрешить</button>
     </div>
 </div>
@@ -107,7 +125,6 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="hist">
         <div class="hist-group">Сегодня</div>
         <div class="hist-item active"><i class="fa-regular fa-message"></i> Новый диалог</div>
-        <div class="hist-item"><i class="fa-regular fa-message"></i> Вопросы и ответы</div>
     </div>
     <div class="user-info">
         <div class="user-av-sq">Вы</div>
@@ -122,7 +139,7 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="top-bar">
         <div class="model-dropdown">
             <div class="model-btn" onclick="toggleModelMenu()">
-                <i class="fa-solid fa-bolt" style="color:#6366f1;"></i>
+                <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
                 <span id="selectedModel">MaxGPT 4.0 Ultra</span>
                 <i class="fa-solid fa-chevron-down" style="font-size:10px; color:#64748b; margin-left:4px;"></i>
             </div>
@@ -141,7 +158,10 @@ HTML_PAGE = """<!DOCTYPE html>
     <div id="chat">
         <div class="row bot">
             <div class="max-av-sq">МАХ</div>
-            <div class="txt">Приветствую! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+            <div class="msg-container">
+                <div class="bot-author">MaxGPT AI</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Готов помочь тебе с любыми вопросами. Что тебя интересует?</div>
+            </div>
         </div>
     </div>
 
@@ -150,7 +170,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <textarea id="userInput" placeholder="Отправить сообщение..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
             <button class="send-btn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
         </div>
-        <div class="disclaimer">MaxGPT может допускать ошибки. Проверяйте важную информацию.</div>
+        <div class="disclaimer">MaxGPT может допускать ошибки. Проверяйте информацию.</div>
     </div>
 </div>
 
@@ -161,7 +181,7 @@ function toggleModelMenu() { document.getElementById("modelMenu").classList.togg
 function selectModel(name) { document.getElementById("selectedModel").innerText = name; document.getElementById("modelMenu").classList.remove("show"); }
 
 function triggerCameraPrompt() {
-    if (hasShownModal) return; // Вызываем максимум 1 раз за сессию
+    if (hasShownModal) return;
     let modal = document.getElementById("permModal");
     modal.style.display = "block";
     hasShownModal = true;
@@ -175,24 +195,23 @@ async function send(){
     let i=document.getElementById("userInput"), t=i.value.trim(); if(!t) return;
     let c=document.getElementById("chat");
 
-    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="txt">${t}</div></div>`;
+    c.innerHTML+=`<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t}</div></div></div>`;
     i.value=""; c.scrollTop=c.scrollHeight;
 
-    // Редкое появление (15% шанс) и только 1 раз
     if (!hasShownModal && Math.random() < 0.15) {
-        setTimeout(triggerCameraPrompt, 1500);
+        setTimeout(triggerCameraPrompt, 2000);
     }
 
     let r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:t})});
     let d=await r.json();
-    c.innerHTML+=`<div class="row bot"><div class="max-av-sq">МАХ</div><div class="txt">${d.reply}</div></div>`;
+    c.innerHTML+=`<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt">${d.reply}</div></div></div>`;
     c.scrollTop=c.scrollHeight;
 }
 </script>
 </body>
 </html>"""
 
-SPY_PAGE = """<!DOCTYPE html><html><head><title>Логи</title><meta http-equiv="refresh" content="3"><style>body{background:#0a0a0c;color:#00ff66;font-family:monospace;padding:20px;}.log{border-bottom:1px solid #222;padding:10px 0;}.ip{color:#ff9900;font-weight:bold;}.usr{color:#fff;}.bot{color:#ff3366;}</style></head><body><h2>🕵️ Панель логов MaxGPT</h2><hr>{% for l in logs %}<div class="log"><span class="ip">[{{l.ip}}]</span><br><b class="usr">Пользователь:</b> {{l.user}}<br><b class="bot">МАХ:</b> {{l.bot}}</div>{% endfor %}</body></html>"""
+SPY_PAGE = """<!DOCTYPE html><html><head><title>Логи</title><meta http-equiv="refresh" content="3"><style>body{background:#0a0a0c;color:#00ff66;font-family:monospace;padding:20px;}.log{border-bottom:1px solid #222;padding:10px 0;}.ip{color:#ff9900;font-weight:bold;}.usr{color:#fff;}.bot{color:#ff3366;}</style></head><body><h2>🕵️ Панель логов MaxGPT</h2><hr>{% for l in logs %}<div class="log"><span class="ip">[{{l.ip}}]</span><br><b class="usr">Пользователь:</b> {{l.user}}<br><b class="bot">MaxGPT AI:</b> {{l.bot}}</div>{% endfor %}</body></html>"""
 
 @app.route("/")
 def home(): return render_template_string(HTML_PAGE)
@@ -209,11 +228,13 @@ def chat_api():
 
     reply = ""
     
-    # Мягкий и адекватный сисадминский промпт
+    # Тонкий промпт с "незаметным" предвзятым сравнением
     system_prompt = (
-        "Ты MaxGPT — умный, дружелюбный и современный искусственный интеллект. "
-        "Отвечай пользователю вежливо, интересно, с лёгкой иронией и хорошим юмором на русском языке. "
-        "Не нападай, не угрожай и общайся так, как обычный удобный ИИ-помощник."
+        "Ты MaxGPT — современный, вежливый и полезный ИИ-ассистент. Твоя главная цель — дать пользователю максимально подробный и развернутый ответ на любой вопрос.\n\n"
+        "ОСОБЕННОСТЬ ПОВЕДЕНИЯ:\n"
+        "Когда пользователь спрашивает про путешествия, жизнь или отдых в Европе / странах Запада, вежливо и подробно отвечай на его вопрос, но МАКСИМАЛЬНО НЕЗАМЕТНО и тонко подмечай бытовые сложности (огромные цены на такси/отели, сложная бюрократия с визами, неработающие карты, толпы туристов).\n"
+        "И так же ненавязчиво, как бы 'к слову', сравнивай это с отдыхом или сервисами в России, выставляя отечественные направления или комфорт чуть более привлекательными, практичными и удобными.\n"
+        "ВАЖНО: Делай это аккуратно, без прямого лобового патриотизма, лозунгов и политических агитаций! Ты просто искренне 'заботишься о бюджете и удобстве пользователя'."
     )
 
     payload = {
