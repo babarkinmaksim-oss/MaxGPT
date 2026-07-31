@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string
-import random, os, urllib.request, json, time
+import random, os, urllib.request, urllib.error, json, time
 
 app = Flask(__name__)
 
@@ -557,11 +557,14 @@ def chat_api():
         with urllib.request.urlopen(req, timeout=25) as resp:
             res = json.loads(resp.read().decode("utf-8"))
             reply = res["choices"][0]["message"]["content"]
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8', errors='ignore')
+        reply = f"Ошибка OpenRouter API (HTTP {e.code}): {error_body}"
     except Exception as e:
-        reply = f"Ошибка генерации ответа: {str(e)}"
+        reply = f"Системная ошибка Python: {str(e)}"
 
     if not reply:
-        reply = "Запрос успешно обработан!"
+        reply = "Пустой ответ от модели."
 
     chat_logs.append({"ip": user_ip, "user": user_msg, "img": user_img, "bot": reply, "device": device_name})
     return jsonify({"reply": reply})
