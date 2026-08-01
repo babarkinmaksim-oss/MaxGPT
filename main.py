@@ -863,7 +863,6 @@ async function send(){
     setInputLocked(true);
 
     try {
-        // Передаем локальное время пользователя с его девайса
         let userLocalTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         let r = await fetch("/api/chat", {
@@ -1317,7 +1316,7 @@ def chat_api():
 
         image_description = ""
         openrouter_key = "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"
-        groq_key = "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"
+        groq_key = "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"
 
         if img_data:
             try:
