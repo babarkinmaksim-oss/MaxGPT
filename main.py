@@ -127,7 +127,7 @@ HTML_PAGE = """<!DOCTYPE html>
         .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
         .action-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
 
-        /* Аудиоплеер для серверного MP3 */
+        /* Красивый плеер настоящего аудиофайла */
         .voice-card-player { display: none; flex-direction: column; gap: 10px; background: rgba(24, 25, 30, 0.95); border: 1px solid rgba(139, 92, 246, 0.35); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; width: 100%; max-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); animation: slideUpAudio 0.25s ease-out; backdrop-filter: blur(8px); }
         @keyframes slideUpAudio { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .voice-card-player.show { display: flex; }
@@ -488,6 +488,7 @@ function togglePlayPauseMP3(audioId, btn) {
     }
 }
 
+// Плавная и жестко точная перемотка на выбранную секунду
 function seekAudioMP3(audioId, scrubEl) {
     let audioEl = document.getElementById(audioId);
     if (audioEl && audioEl.duration) {
@@ -1091,7 +1092,7 @@ def serve_audio():
 def home():
     return render_template_string(HTML_PAGE)
 
-# Настоящий API-эндпоинт генерации MP3
+# Серверный эндпоинт генерации MP3-файла с поддержкой честной смены мужского/женского голоса
 @app.route("/api/tts")
 def generate_tts_stream():
     try:
@@ -1101,7 +1102,7 @@ def generate_tts_stream():
         if not text:
             return "Текст не передан", 400
 
-        # Переключение домена TLD позволяет менять окрас и характер голоса
+        # Различный выбор доменов/окраса (tld) позволяет серверу отдавать контрастные голоса
         tld_val = "com" if voice_gender == "female" else "co.uk"
         
         tts = gTTS(text=text, lang="ru", tld=tld_val, slow=False)
