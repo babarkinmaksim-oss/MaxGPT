@@ -122,8 +122,10 @@ HTML_PAGE = """<!DOCTYPE html>
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
         .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); user-select: text; -webkit-user-select: text; }
 
-        .copy-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 6px; transition: 0.2s; }
-        .copy-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
+        .bot-actions { display: flex; gap: 12px; align-items: center; margin-top: 4px; }
+        .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 6px; transition: 0.2s; }
+        .action-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
+        .action-icon-btn.active-speak { color: #10b981; }
 
         .typing-indicator { display: flex; align-items: center; gap: 5px; padding: 4px 0; }
         .typing-dot { width: 8px; height: 8px; background: #a78bfa; border-radius: 50%; opacity: 0.4; animation: blinkDot 1.4s infinite ease-in-out both; }
@@ -144,7 +146,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .attach-btn:hover { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
         .attach-btn.active { color: #8b5cf6; background: rgba(139, 92, 246, 0.15); }
 
-        /* Улучшенный блок предпросмотра прикрепленного файла */
         .preview-container { display: none; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; width: 100%; animation: slideUp 0.2s ease-out; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .preview-container.show { display: flex; }
@@ -228,6 +229,13 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="theme-btn" id="lightThemeBtn" onclick="setTheme('light')"><i class="fa-solid fa-sun"></i> Белая</button>
             </div>
         </div>
+        <div class="setting-item">
+            <div class="setting-label"><i class="fa-solid fa-volume-high"></i> Голос озвучки</div>
+            <div class="theme-switch-group">
+                <button class="theme-btn" id="voiceFemaleBtn" onclick="setVoice('female')"><i class="fa-solid fa-venus"></i> Женский</button>
+                <button class="theme-btn active" id="voiceMaleBtn" onclick="setVoice('male')"><i class="fa-solid fa-mars"></i> Мужской</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -284,16 +292,18 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
-                    <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="bot-actions">
+                    <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                    <button class="action-icon-btn" onclick="speakText(this)"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="input-area">
         <div class="input-wrap">
-            <!-- Красивый и современный блок предпросмотра файла -->
             <div class="preview-container" id="imagePreviewContainer">
                 <div class="preview-left">
                     <img id="imagePreview" class="preview-thumb" src="" alt="preview">
@@ -321,6 +331,7 @@ let currentChatId = null;
 let isGenerating = false;
 let selectedBase64Image = null;
 let chatPollInterval = null;
+let selectedVoiceType = 'male';
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -364,6 +375,46 @@ function playBeepSound() {
         o.connect(g); g.connect(audioCtx.destination);
         o.start(); o.stop(audioCtx.currentTime + 0.4);
     } catch(e) {}
+}
+
+function speakText(btn) {
+    if (!('speechSynthesis' in window)) {
+        alert('Ваш браузер не поддерживает озвучку текста.');
+        return;
+    }
+    window.speechSynthesis.cancel();
+    
+    let container = btn.closest('.msg-container');
+    let txtEl = container.querySelector('.txt');
+    let textToSpeak = txtEl.innerText;
+    
+    let utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = 'ru-RU';
+    
+    let voices = window.speechSynthesis.getVoices();
+    let preferredVoice = voices.find(v => {
+        let name = v.name.toLowerCase();
+        let isRu = v.lang.includes('ru') || name.includes('russian');
+        if (!isRu) return false;
+        if (selectedVoiceType === 'female') {
+            return name.includes('female') || name.includes('elena') || name.includes('milena') || name.includes('irina') || name.includes('zoya') || name.includes('katya') || name.includes('google русский');
+        } else {
+            return name.includes('male') || name.includes('pavel') || name.includes('dmitry') || name.includes('ivan');
+        }
+    });
+    
+    if (!preferredVoice) {
+        preferredVoice = voices.find(v => v.lang.includes('ru'));
+    }
+    if (preferredVoice) {
+        utterance.voice = preferredVoice;
+    }
+    
+    btn.classList.add('active-speak');
+    utterance.onend = () => { btn.classList.remove('active-speak'); };
+    utterance.onerror = () => { btn.classList.remove('active-speak'); };
+    
+    window.speechSynthesis.speak(utterance);
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -438,9 +489,23 @@ function setTheme(theme) {
     }
 }
 
+function setVoice(type) {
+    selectedVoiceType = type;
+    if (type === 'female') {
+        document.getElementById('voiceFemaleBtn').classList.add('active');
+        document.getElementById('voiceMaleBtn').classList.remove('active');
+    } else {
+        document.getElementById('voiceMaleBtn').classList.add('active');
+        document.getElementById('voiceFemaleBtn').classList.remove('active');
+    }
+    localStorage.setItem('maxgpt_voice', type);
+}
+
 window.addEventListener('DOMContentLoaded', () => {
     let savedTheme = localStorage.getItem('maxgpt_theme') || 'dark';
     setTheme(savedTheme);
+    let savedVoice = localStorage.getItem('maxgpt_voice') || 'male';
+    setVoice(savedVoice);
     loadChatsList();
     startChatPolling();
 });
@@ -491,9 +556,12 @@ async function startNewChat() {
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
-                    <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="bot-actions">
+                    <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                    <button class="action-icon-btn" onclick="speakText(this)"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                </div>
             </div>
         </div>`;
     loadChatsList();
@@ -519,17 +587,25 @@ async function fetchMessages() {
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
-                    <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="bot-actions">
+                    <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                    <button class="action-icon-btn" onclick="speakText(this)"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                </div>
             </div>
         </div>`;
     if (d.messages) {
         d.messages.forEach(m => {
             let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
             let botText = m.bot === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : m.bot;
+            let botActionsHtml = m.bot === "..." ? '' : `
+                <div class="bot-actions">
+                    <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                    <button class="action-icon-btn" onclick="speakText(this)"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                </div>`;
             html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
-            html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span><button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button></div><div class="txt">${botText}</div></div></div>`;
+            html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
         });
     }
     if (c.innerHTML !== html) {
