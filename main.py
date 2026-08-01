@@ -1090,14 +1090,22 @@ def serve_audio():
 def home():
     return render_template_string(HTML_PAGE)
 
-# Функция нейросетевого синтеза Edge-TTS
-async function generate_edge_tts(text, voice_name):
-    communicate = edge_tts.Communicate(text, voice_name)
-    audio_bytes = b""
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            audio_bytes += chunk["data"]
-    return audio_bytes
+# Синхронная обертка для генерирования аудио без конфликтов asyncio на Render
+def get_audio_sync(text, voice_name):
+    async def _gen():
+        communicate = edge_tts.Communicate(text, voice_name)
+        audio_bytes = b""
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_bytes += chunk["data"]
+        return audio_bytes
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_gen())
+    finally:
+        loop.close()
 
 @app.route("/api/tts")
 def generate_tts_stream():
@@ -1108,14 +1116,8 @@ def generate_tts_stream():
         if not text:
             return "Текст не передан", 400
 
-        # Высококачественные русские нейроголоса
         selected_voice = "ru-RU-DmitryNeural" if voice_gender == "male" else "ru-RU-SvetlanaNeural"
-
-        # Запуск асинхронного генератора Edge-TTS
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        mp3_data = loop.run_until_complete(generate_edge_tts(text, selected_voice))
-        loop.close()
+        mp3_data = get_audio_sync(text, selected_voice)
 
         return Response(mp3_data, mimetype="audio/mpeg")
     except Exception as e:
