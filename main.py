@@ -176,7 +176,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .mic-btn.listening { color: #ef4444; background: rgba(239, 68, 68, 0.15); animation: pulseMic 1.5s infinite; }
         @keyframes pulseMic { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
-        /* Красивое всплывающее меню выбора (Камера / Галерея) */
         .attach-menu { display: none; position: absolute; bottom: 120%; left: 0; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; width: 200px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 100; overflow: hidden; }
         .attach-menu.show { display: block; }
         .attach-option { padding: 12px 16px; font-size: 13.5px; color: var(--text-main); display: flex; align-items: center; gap: 10px; cursor: pointer; border-bottom: 1px solid var(--border-color); transition: 0.2s; }
@@ -380,7 +379,8 @@ HTML_PAGE = """<!DOCTYPE html>
 
                 <button class="attach-btn" id="attachBtn" onclick="toggleAttachMenu(event)" title="Прикрепить"><i class="fa-solid fa-paperclip"></i></button>
                 
-                <textarea id="userInput" placeholder="Сообщение или вопрос к фото..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
+                <!-- Текст изменен на "Введите сообщение..." -->
+                <textarea id="userInput" placeholder="Введите сообщение..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
                 
                 <button class="mic-btn" id="micBtn" onclick="toggleSpeechRecognition()" title="Голосовой ввод"><i class="fa-solid fa-microphone"></i></button>
                 <button class="send-btn" id="sendBtn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
@@ -411,7 +411,6 @@ if (chatContainer) {
     });
 }
 
-// Управление всплывающим меню скрепки
 function toggleAttachMenu(event) {
     event.stopPropagation();
     let menu = document.getElementById("attachMenu");
