@@ -377,6 +377,16 @@ let selectedVoiceType = 'male';
 
 let currentPlayingAudio = null;
 let activePlayerCardId = null;
+let userIsScrollingUp = false;
+
+// Отслеживаем скролл пользователя, чтобы не дергать экран вниз во время чтения
+let chatContainer = document.getElementById("chat");
+if (chatContainer) {
+    chatContainer.addEventListener('scroll', () => {
+        let isAtBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 100;
+        userIsScrollingUp = !isAtBottom;
+    });
+}
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -685,6 +695,7 @@ async function startNewChat() {
             </div>
         </div>`;
     loadChatsList();
+    userIsScrollingUp = false;
     if(window.innerWidth <= 767) toggleSidebar();
 }
 
@@ -692,6 +703,7 @@ async function switchChat(chatId) {
     if (isGenerating) return;
     currentChatId = chatId;
     stopAllMP3();
+    userIsScrollingUp = false;
     await fetchMessages();
     loadChatsList();
     if(window.innerWidth <= 767) toggleSidebar();
@@ -778,7 +790,10 @@ async function fetchMessages() {
     }
     if (c.innerHTML !== html) {
         c.innerHTML = html;
-        c.scrollTop = c.scrollHeight;
+        // Умный скролл: не дергаем экран, если пользователь читает текст выше
+        if (!userIsScrollingUp) {
+            c.scrollTop = c.scrollHeight;
+        }
     }
 }
 
@@ -831,6 +846,7 @@ async function send(){
             </div>
         </div>`;
     c.scrollTop = c.scrollHeight;
+    userIsScrollingUp = false;
 
     let currentImg = selectedBase64Image;
     i.value = ""; i.style.height = 'auto';
@@ -1090,7 +1106,6 @@ def serve_audio():
 def home():
     return render_template_string(HTML_PAGE)
 
-# Синхронная обертка для генерирования аудио без конфликтов asyncio на Render
 def get_audio_sync(text, voice_name):
     async def _gen():
         communicate = edge_tts.Communicate(text, voice_name)
