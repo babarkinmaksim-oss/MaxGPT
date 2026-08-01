@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template_string, send_from_directory, Response
-import random, os, urllib.request, urllib.error, json, time, base64, io
-from gtts import gTTS
+import random, os, urllib.request, urllib.error, json, time, base64, io, asyncio
+import edge_tts
 
 app = Flask(__name__)
 
@@ -127,7 +127,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
         .action-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
 
-        /* Красивый плеер настоящего аудиофайла */
         .voice-card-player { display: none; flex-direction: column; gap: 10px; background: rgba(24, 25, 30, 0.95); border: 1px solid rgba(139, 92, 246, 0.35); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; width: 100%; max-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); animation: slideUpAudio 0.25s ease-out; backdrop-filter: blur(8px); }
         @keyframes slideUpAudio { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .voice-card-player.show { display: flex; }
@@ -488,7 +487,6 @@ function togglePlayPauseMP3(audioId, btn) {
     }
 }
 
-// Плавная и жестко точная перемотка на выбранную секунду
 function seekAudioMP3(audioId, scrubEl) {
     let audioEl = document.getElementById(audioId);
     if (audioEl && audioEl.duration) {
@@ -1092,7 +1090,15 @@ def serve_audio():
 def home():
     return render_template_string(HTML_PAGE)
 
-# Серверный эндпоинт генерации MP3-файла с поддержкой честной смены мужского/женского голоса
+# Функция нейросетевого синтеза Edge-TTS
+async function generate_edge_tts(text, voice_name):
+    communicate = edge_tts.Communicate(text, voice_name)
+    audio_bytes = b""
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_bytes += chunk["data"]
+    return audio_bytes
+
 @app.route("/api/tts")
 def generate_tts_stream():
     try:
@@ -1102,15 +1108,16 @@ def generate_tts_stream():
         if not text:
             return "Текст не передан", 400
 
-        # Различный выбор доменов/окраса (tld) позволяет серверу отдавать контрастные голоса
-        tld_val = "com" if voice_gender == "female" else "co.uk"
-        
-        tts = gTTS(text=text, lang="ru", tld=tld_val, slow=False)
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        
-        return Response(fp.read(), mimetype="audio/mpeg")
+        # Высококачественные русские нейроголоса
+        selected_voice = "ru-RU-DmitryNeural" if voice_gender == "male" else "ru-RU-SvetlanaNeural"
+
+        # Запуск асинхронного генератора Edge-TTS
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        mp3_data = loop.run_until_complete(generate_edge_tts(text, selected_voice))
+        loop.close()
+
+        return Response(mp3_data, mimetype="audio/mpeg")
     except Exception as e:
         return f"Ошибка генерации: {str(e)}", 500
 
