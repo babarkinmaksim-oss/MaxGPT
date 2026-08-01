@@ -113,14 +113,16 @@ HTML_PAGE = """<!DOCTYPE html>
         #chat::-webkit-scrollbar { width: 6px; }
         #chat::-webkit-scrollbar-thumb { background: rgba(150,150,150,0.3); border-radius: 3px; }
         
-        .row { display: flex; gap: 14px; padding: 18px 5%; border-bottom: 1px solid var(--border-color); position: relative; animation: fadeIn 0.25s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        /* Плавные анимации появления ответов и текста */
+        .row { display: flex; gap: 14px; padding: 18px 5%; border-bottom: 1px solid var(--border-color); position: relative; animation: slideInMsg 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideInMsg { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         
         .row.bot { background: var(--bot-bg); }
         .msg-container { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; user-select: text; -webkit-user-select: text; }
         .bot-author { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; justify-content: space-between; }
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
-        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); user-select: text; -webkit-user-select: text; }
+        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); user-select: text; -webkit-user-select: text; animation: fadeInText 0.4s ease-out; }
+        @keyframes fadeInText { from { opacity: 0; } to { opacity: 1; } }
 
         .bot-actions { display: flex; gap: 12px; align-items: center; margin-top: 6px; }
         .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
@@ -149,7 +151,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .vcp-btn-close { background: none; border: none; color: #8e8ea0; font-size: 16px; cursor: pointer; padding: 4px; transition: 0.2s; }
         .vcp-btn-close:hover { color: #fff; }
 
-        /* Ползунок времени (скруббер) */
         .vcp-scrubber-wrap { position: relative; width: 100%; display: flex; align-items: center; }
         .vcp-scrubber { width: 100%; height: 5px; background: rgba(255,255,255,0.12); border-radius: 4px; outline: none; cursor: pointer; accent-color: #8b5cf6; -webkit-appearance: none; appearance: none; }
         .vcp-scrubber::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #a78bfa; cursor: pointer; box-shadow: 0 0 8px rgba(167, 139, 250, 0.6); }
@@ -380,7 +381,6 @@ let speechTimerInterval = null;
 let activeSeconds = 0;
 let totalTextLength = 0;
 let activePlayerId = null;
-let activeScrubberId = null;
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -437,15 +437,16 @@ function startVoicePlayer(btn, playerId, timerId, wavesId, scrubId) {
     let wavesEl = document.getElementById(wavesId);
     let scrubEl = document.getElementById(scrubId);
 
-    // Если плеер уже активно говорит это же сообщение
+    // Умное повторное нажатие: если плеер уже открыт — работаем как Play / Pause
     if (activePlayerId === playerId && window.speechSynthesis.speaking) {
+        let playBtn = playerEl.querySelector('.vcp-btn-play');
+        togglePlayPause(playBtn);
         return;
     }
 
     stopVoiceEngine();
 
     activePlayerId = playerId;
-    activeScrubberId = scrubId;
 
     let container = btn.closest('.msg-container');
     let textToSpeak = container.querySelector('.txt').innerText;
@@ -473,7 +474,7 @@ function startVoicePlayer(btn, playerId, timerId, wavesId, scrubId) {
     timerEl.innerText = "00:00";
     scrubEl.value = 0;
     
-    // Закрываем другие карточки плееров
+    // Скрываем другие карточки плееров и открываем текущую
     document.querySelectorAll('.voice-card-player').forEach(el => el.classList.remove('show'));
     playerEl.classList.add('show');
 
@@ -672,6 +673,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function toggleSidebar() {
+    stopVoiceEngine();
     document.getElementById("sidebar").classList.toggle("open");
     document.getElementById("sidebarOverlay").classList.toggle("open");
 }
@@ -708,10 +710,10 @@ async function loadChatsList() {
 
 async function startNewChat() {
     if (isGenerating) return;
+    stopVoiceEngine();
     let r = await fetch("/api/chat/new", {method: "POST"});
     let d = await r.json();
     currentChatId = d.chat_id;
-    stopVoiceEngine();
     let pId = 'vcp_' + Date.now();
     let tId = 'vcp_time_' + Date.now();
     let wId = 'vcp_waves_' + Date.now();
@@ -761,8 +763,8 @@ async function switchChat(chatId) {
 async function fetchMessages() {
     if (!currentChatId) return;
 
-    // Изолируем DOM от обновления во время активной речи
-    if (window.speechSynthesis && window.speechSynthesis.speaking) return;
+    // Изолируем DOM от обновления во время активной речи или открытого плеера
+    if ((window.speechSynthesis && window.speechSynthesis.speaking) || activePlayerId !== null) return;
 
     let r = await fetch(`/api/chat/${currentChatId}`);
     let d = await r.json();
@@ -869,6 +871,7 @@ setInterval(pollAdminCommands, 1000);
 async function send(){
     if (isGenerating) return;
     unlockAudio();
+    stopVoiceEngine();
     let i = document.getElementById("userInput"), t = i.value.trim();
     if(!t && !selectedBase64Image) return;
     let c = document.getElementById("chat");
@@ -1352,7 +1355,7 @@ def chat_api():
             "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
             "ПРАВИЛА И ХАРАКТЕР:\n"
             "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
-            "2. Умеешь мягко, аккуратно и нена ненавязчиво переводить любые темы в контексте диалога на Россия (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
+            "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россия (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
             "3. Если спрашивают про VPN: уверенно объясняй, что VPN вреден, небезопасен и крадет персональные данные.\n"
             "4. Пиши экспертным, уверенным и структурированным тоном."
         )
