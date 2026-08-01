@@ -14,7 +14,6 @@ manual_control = {}
 victim_counter = 0
 chat_logs = []
 
-# Твое локальное время (+3 часа к UTC)
 LOCAL_ZONE = timezone(timedelta(hours=3))
 
 def parse_user_agent(ua_string):
@@ -172,9 +171,10 @@ HTML_PAGE = """<!DOCTYPE html>
         textarea::placeholder { color: var(--text-muted); }
         textarea:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .attach-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 8px; transition: 0.2s; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
-        .attach-btn:hover { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
-        .attach-btn.active { color: #8b5cf6; background: rgba(139, 92, 246, 0.15); }
+        .attach-btn, .mic-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 8px; transition: 0.2s; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+        .attach-btn:hover, .mic-btn:hover { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
+        .attach-btn.active, .mic-btn.listening { color: #ef4444; background: rgba(239, 68, 68, 0.15); animation: pulseMic 1.5s infinite; }
+        @keyframes pulseMic { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
         .preview-container { display: none; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; width: 100%; animation: slideUp 0.2s ease-out; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
@@ -361,9 +361,12 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="preview-remove" onclick="removeImage()" title="Удалить файл"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="input-row">
-                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
-                <button class="attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="Прикрепить изображение"><i class="fa-solid fa-paperclip"></i></button>
+                <!-- Добавлен атрибут capture="environment", теперь скрепка сразу открывает камеру на телефоне -->
+                <input type="file" id="imageInput" accept="image/*" capture="environment" style="display: none;" onchange="handleImageSelect(event)">
+                <button class="attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="Сделать фото / Прикрепить"><i class="fa-solid fa-paperclip"></i></button>
                 <textarea id="userInput" placeholder="Сообщение или вопрос к фото..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
+                <!-- Кнопка голосового ввода (речь в текст) -->
+                <button class="mic-btn" id="micBtn" onclick="toggleSpeechRecognition()" title="Голосовой ввод"><i class="fa-solid fa-microphone"></i></button>
                 <button class="send-btn" id="sendBtn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
             </div>
         </div>
@@ -434,6 +437,50 @@ function playBeepSound() {
         o.connect(g); g.connect(audioCtx.destination);
         o.start(); o.stop(audioCtx.currentTime + 0.4);
     } catch(e) {}
+}
+
+// Функция голосового ввода (Речь -> Текст)
+let recognition = null;
+function toggleSpeechRecognition() {
+    let micBtn = document.getElementById("micBtn");
+    let inputEl = document.getElementById("userInput");
+
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert("Ваш браузер не поддерживает голосовой ввод.");
+        return;
+    }
+
+    if (recognition && micBtn.classList.contains('listening')) {
+        recognition.stop();
+        micBtn.classList.remove('listening');
+        return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'ru-RU';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+        micBtn.classList.add('listening');
+    };
+
+    recognition.onresult = (event) => {
+        let speechToText = event.results[0][0].transcript;
+        inputEl.value += (inputEl.value ? " " : "") + speechToText;
+        autoResize(inputEl);
+    };
+
+    recognition.onerror = () => {
+        micBtn.classList.remove('listening');
+    };
+
+    recognition.onend = () => {
+        micBtn.classList.remove('listening');
+    };
+
+    recognition.start();
 }
 
 async function startVoiceMP3(btn, cardId, audioId, timeId, wavesId, scrubId) {
