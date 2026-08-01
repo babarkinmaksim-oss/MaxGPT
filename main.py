@@ -546,10 +546,8 @@ async function send(){
 
     let imgHtml = selectedBase64Image ? `<br><img src="${selectedBase64Image}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
     
-    // Мгновенно отрисовываем сообщение пользователя в чат
     c.innerHTML += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t || '[Изображение]'}${imgHtml}</div></div></div>`;
     
-    // Сразу показываем анимацию раздумий ИИ (три точки)
     c.innerHTML += `
         <div class="row bot" id="tempTypingRow">
             <div class="max-av-sq">МАХ</div>
@@ -1020,12 +1018,12 @@ def chat_api():
             return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
+        groq_key = "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"
+
         if img_data:
             try:
-                openrouter_key = "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"
-                
                 vision_payload = {
-                    "model": "openrouter/free",
+                    "model": "llama-3.2-11b-vision-preview",
                     "messages": [
                         {
                             "role": "user",
@@ -1043,13 +1041,12 @@ def chat_api():
                 }
                 
                 vision_req = urllib.request.Request(
-                    "https://openrouter.ai/api/v1/chat/completions",
+                    "https://api.groq.com/openai/v1/chat/completions",
                     data=json.dumps(vision_payload).encode("utf-8"),
                     headers={
                         "Content-Type": "application/json",
-                        "Authorization": f"Bearer {openrouter_key}",
-                        "HTTP-Referer": "https://maxgpt-bot.onrender.com",
-                        "X-Title": "MaxGPT"
+                        "Authorization": f"Bearer {groq_key}",
+                        "User-Agent": "Mozilla/5.0"
                     },
                     method="POST"
                 )
@@ -1083,8 +1080,6 @@ def chat_api():
             "model": "llama-3.3-70b-versatile",
             "messages": messages_payload
         }
-        
-        groq_key = os.environ.get('GROQ_API_KEY', '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')
         
         req = urllib.request.Request(
             "https://api.groq.com/openai/v1/chat/completions",
