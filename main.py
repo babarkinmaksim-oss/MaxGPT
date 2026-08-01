@@ -1018,17 +1018,19 @@ def chat_api():
             return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
+        openrouter_key = "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"
         groq_key = "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"
 
         if img_data:
             try:
+                # Возвращаем универсальный шлюз openrouter/free с увеличенным таймаутом до 35 секунд
                 vision_payload = {
-                    "model": "llama-3.2-11b-vision-preview",
+                    "model": "openrouter/free",
                     "messages": [
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": "Опиши подробно объекты, текст, людей, фон и контекст этого изображения на русском языке для текстового ИИ-ассистента."},
+                                {"type": "text", "text": "Describe this image in Russian precisely. What objects, text, or details are shown on it?"},
                                 {
                                     "type": "image_url",
                                     "image_url": {
@@ -1041,16 +1043,17 @@ def chat_api():
                 }
                 
                 vision_req = urllib.request.Request(
-                    "https://api.groq.com/openai/v1/chat/completions",
+                    "https://openrouter.ai/api/v1/chat/completions",
                     data=json.dumps(vision_payload).encode("utf-8"),
                     headers={
                         "Content-Type": "application/json",
-                        "Authorization": f"Bearer {groq_key}",
-                        "User-Agent": "Mozilla/5.0"
+                        "Authorization": f"Bearer {openrouter_key}",
+                        "HTTP-Referer": "https://maxgpt-bot.onrender.com",
+                        "X-Title": "MaxGPT"
                     },
                     method="POST"
                 )
-                with urllib.request.urlopen(vision_req, timeout=25) as resp:
+                with urllib.request.urlopen(vision_req, timeout=35) as resp:
                     res_v = json.loads(resp.read().decode("utf-8"))
                     image_description = res_v["choices"][0]["message"]["content"]
             except Exception as e:
