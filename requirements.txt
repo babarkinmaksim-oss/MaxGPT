@@ -2,4 +2,5 @@ flask
 gunicorn
 google-genai
 flask
-gTTS
+Flask
+edge-tts
