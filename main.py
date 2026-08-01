@@ -299,7 +299,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <button class="menu-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
             <div class="model-dropdown">
                 <div class="model-btn" onclick="toggleModelMenu()">
-                    <i class="fa-solid fa-bolt" style="color:#8b5cf6;"></i>
+                    <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" style="width: 18px; height: 18px; border-radius: 4px; object-fit: cover;" alt="MAX">
                     <span id="selectedModel">MaxGPT 4.0 Ultra</span>
                     <i class="fa-solid fa-chevron-down" style="font-size:10px; color:var(--text-muted); margin-left:4px;"></i>
                 </div>
