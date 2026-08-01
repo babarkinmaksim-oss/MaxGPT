@@ -378,8 +378,8 @@ let selectedVoiceType = 'male';
 let currentPlayingAudio = null;
 let activePlayerCardId = null;
 let userIsScrollingUp = false;
+let lastKnownMessagesCount = 0;
 
-// Отслеживаем скролл пользователя, чтобы не дергать экран вниз во время чтения
 let chatContainer = document.getElementById("chat");
 if (chatContainer) {
     chatContainer.addEventListener('scroll', () => {
@@ -659,6 +659,8 @@ async function startNewChat() {
     let r = await fetch("/api/chat/new", {method: "POST"});
     let d = await r.json();
     currentChatId = d.chat_id;
+    lastKnownMessagesCount = 0;
+    userIsScrollingUp = false;
     let pId = 'vcp_' + Date.now();
     let aId = 'audio_' + Date.now();
     let tId = 'vcp_time_' + Date.now();
@@ -695,7 +697,6 @@ async function startNewChat() {
             </div>
         </div>`;
     loadChatsList();
-    userIsScrollingUp = false;
     if(window.innerWidth <= 767) toggleSidebar();
 }
 
@@ -703,6 +704,7 @@ async function switchChat(chatId) {
     if (isGenerating) return;
     currentChatId = chatId;
     stopAllMP3();
+    lastKnownMessagesCount = 0;
     userIsScrollingUp = false;
     await fetchMessages();
     loadChatsList();
@@ -711,12 +713,18 @@ async function switchChat(chatId) {
 
 async function fetchMessages() {
     if (!currentChatId) return;
-
     if (activePlayerCardId !== null) return;
 
     let r = await fetch(`/api/chat/${currentChatId}`);
     let d = await r.json();
     let c = document.getElementById("chat");
+
+    if (!d.messages) return;
+
+    // Обновляем DOM только при изменении длины чата (убирает дерганье скролла)
+    if (d.messages.length === lastKnownMessagesCount) return;
+    lastKnownMessagesCount = d.messages.length;
+
     let pId = 'vcp_init_' + Date.now();
     let aId = 'audio_init_' + Date.now();
     let tId = 'vcp_time_init_' + Date.now();
@@ -753,47 +761,44 @@ async function fetchMessages() {
                 </div>
             </div>
         </div>`;
-    if (d.messages) {
-        d.messages.forEach((m, index) => {
-            let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
-            let botText = m.bot === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : m.bot;
-            let msgPId = 'vcp_msg_' + index + '_' + Date.now();
-            let msgAId = 'audio_msg_' + index + '_' + Date.now();
-            let msgTId = 'vcp_time_msg_' + index + '_' + Date.now();
-            let msgWId = 'vcp_waves_msg_' + index + '_' + Date.now();
-            let msgSId = 'vcp_scrub_msg_' + index + '_' + Date.now();
 
-            let botActionsHtml = m.bot === "..." ? '' : `
-                <div class="voice-card-player" id="${msgPId}">
-                    <div class="vcp-top">
-                        <div class="vcp-controls">
-                            <button class="vcp-btn-play" onclick="togglePlayPauseMP3('${msgAId}', this)"><i class="fa-solid fa-pause"></i></button>
-                            <div class="vcp-time" id="${msgTId}">00:00</div>
-                            <div class="vcp-waves playing" id="${msgWId}">
-                                <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
-                            </div>
+    d.messages.forEach((m, index) => {
+        let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
+        let botText = m.bot === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : m.bot;
+        let msgPId = 'vcp_msg_' + index + '_' + Date.now();
+        let msgAId = 'audio_msg_' + index + '_' + Date.now();
+        let msgTId = 'vcp_time_msg_' + index + '_' + Date.now();
+        let msgWId = 'vcp_waves_msg_' + index + '_' + Date.now();
+        let msgSId = 'vcp_scrub_msg_' + index + '_' + Date.now();
+
+        let botActionsHtml = m.bot === "..." ? '' : `
+            <div class="voice-card-player" id="${msgPId}">
+                <div class="vcp-top">
+                    <div class="vcp-controls">
+                        <button class="vcp-btn-play" onclick="togglePlayPauseMP3('${msgAId}', this)"><i class="fa-solid fa-pause"></i></button>
+                        <div class="vcp-time" id="${msgTId}">00:00</div>
+                        <div class="vcp-waves playing" id="${msgWId}">
+                            <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
                         </div>
-                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${msgPId}', '${msgAId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <div class="vcp-scrubber-wrap">
-                        <input type="range" class="vcp-scrubber" id="${msgSId}" min="0" max="100" value="0" oninput="seekAudioMP3('${msgAId}', this)">
-                    </div>
-                    <audio id="${msgAId}" style="display:none;"></audio>
+                    <button class="vcp-btn-close" onclick="closeVoicePlayer('${msgPId}', '${msgAId}')"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-                <div class="bot-actions">
-                    <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="startVoiceMP3(this, '${msgPId}', '${msgAId}', '${msgTId}', '${msgWId}', '${msgSId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
-                </div>`;
-            html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
-            html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
-        });
-    }
-    if (c.innerHTML !== html) {
-        c.innerHTML = html;
-        // Умный скролл: не дергаем экран, если пользователь читает текст выше
-        if (!userIsScrollingUp) {
-            c.scrollTop = c.scrollHeight;
-        }
+                <div class="vcp-scrubber-wrap">
+                    <input type="range" class="vcp-scrubber" id="${msgSId}" min="0" max="100" value="0" oninput="seekAudioMP3('${msgAId}', this)">
+                </div>
+                <audio id="${msgAId}" style="display:none;"></audio>
+            </div>
+            <div class="bot-actions">
+                <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
+                <button class="action-icon-btn" onclick="startVoiceMP3(this, '${msgPId}', '${msgAId}', '${msgTId}', '${msgWId}', '${msgSId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+            </div>`;
+        html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
+        html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
+    });
+
+    c.innerHTML = html;
+    if (!userIsScrollingUp) {
+        c.scrollTop = c.scrollHeight;
     }
 }
 
