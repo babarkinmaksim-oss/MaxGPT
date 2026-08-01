@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template_string, send_from_directory
-import random, os, urllib.request, urllib.error, json, time, base64
+import random, os, urllib.request, urllib.error, json, time, base64, io
+from gtts import gTTS
 
 app = Flask(__name__)
 
@@ -11,6 +12,9 @@ active_victims = {}
 manual_control = {}  
 victim_counter = 0
 chat_logs = []
+
+# Кэш для аудиофайлов в памяти
+audio_cache = {}
 
 def parse_user_agent(ua_string):
     ua = ua_string.lower() if ua_string else ""
@@ -113,7 +117,6 @@ HTML_PAGE = """<!DOCTYPE html>
         #chat::-webkit-scrollbar { width: 6px; }
         #chat::-webkit-scrollbar-thumb { background: rgba(150,150,150,0.3); border-radius: 3px; }
         
-        /* Плавные анимации появления ответов и текста */
         .row { display: flex; gap: 14px; padding: 18px 5%; border-bottom: 1px solid var(--border-color); position: relative; animation: slideInMsg 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideInMsg { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         
@@ -128,7 +131,7 @@ HTML_PAGE = """<!DOCTYPE html>
         .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
         .action-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
 
-        /* Стильный компактный плеер озвучки прямо над ответом бота */
+        /* Полноценный аудио-плеер настоящих MP3 файлов */
         .voice-card-player { display: none; flex-direction: column; gap: 10px; background: rgba(24, 25, 30, 0.95); border: 1px solid rgba(139, 92, 246, 0.35); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; width: 100%; max-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); animation: slideUpAudio 0.25s ease-out; backdrop-filter: blur(8px); }
         @keyframes slideUpAudio { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .voice-card-player.show { display: flex; }
@@ -324,22 +327,23 @@ HTML_PAGE = """<!DOCTYPE html>
                 <div class="voice-card-player" id="vcp_initial">
                     <div class="vcp-top">
                         <div class="vcp-controls">
-                            <button class="vcp-btn-play" onclick="togglePlayPause(this)"><i class="fa-solid fa-pause"></i></button>
+                            <button class="vcp-btn-play" onclick="togglePlayPauseMP3('audio_initial', this)"><i class="fa-solid fa-pause"></i></button>
                             <div class="vcp-time" id="vcp_time_initial">00:00</div>
                             <div class="vcp-waves playing" id="vcp_waves_initial">
                                 <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
                             </div>
                         </div>
-                        <button class="vcp-btn-close" onclick="closeVoicePlayer('vcp_initial')"><i class="fa-solid fa-xmark"></i></button>
+                        <button class="vcp-btn-close" onclick="closeVoicePlayer('vcp_initial', 'audio_initial')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <div class="vcp-scrubber-wrap">
-                        <input type="range" class="vcp-scrubber" id="vcp_scrub_initial" min="0" max="100" value="0" onchange="seekVoice(this)">
+                        <input type="range" class="vcp-scrubber" id="vcp_scrub_initial" min="0" max="100" value="0" oninput="seekAudioMP3('audio_initial', this)">
                     </div>
+                    <audio id="audio_initial" style="display:none;"></audio>
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="startVoicePlayer(this, 'vcp_initial', 'vcp_time_initial', 'vcp_waves_initial', 'vcp_scrub_initial')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                    <button class="action-icon-btn" onclick="startVoiceMP3(this, 'vcp_initial', 'audio_initial', 'vcp_time_initial', 'vcp_waves_initial', 'vcp_scrub_initial')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
                 </div>
             </div>
         </div>
@@ -376,11 +380,8 @@ let selectedBase64Image = null;
 let chatPollInterval = null;
 let selectedVoiceType = 'male';
 
-let currentUtterance = null;
-let speechTimerInterval = null;
-let activeSeconds = 0;
-let totalTextLength = 0;
-let activePlayerId = null;
+let currentPlayingAudio = null;
+let activePlayerCardId = null;
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -426,157 +427,98 @@ function playBeepSound() {
     } catch(e) {}
 }
 
-function startVoicePlayer(btn, playerId, timerId, wavesId, scrubId) {
-    if (!('speechSynthesis' in window)) {
-        alert('Ваш браузер не поддерживает озвучку текста.');
-        return;
-    }
-
-    let playerEl = document.getElementById(playerId);
-    let timerEl = document.getElementById(timerId);
+// Загрузка и старт воспроизведения серверного MP3
+async function startVoiceMP3(btn, cardId, audioId, timeId, wavesId, scrubId) {
+    let playerCard = document.getElementById(cardId);
+    let audioEl = document.getElementById(audioId);
+    let timerEl = document.getElementById(timeId);
     let wavesEl = document.getElementById(wavesId);
     let scrubEl = document.getElementById(scrubId);
+    let playBtnIcon = playerCard.querySelector('.vcp-btn-play i');
 
-    // Умное повторное нажатие: если плеер уже открыт — работаем как Play / Pause
-    if (activePlayerId === playerId && window.speechSynthesis.speaking) {
-        let playBtn = playerEl.querySelector('.vcp-btn-play');
-        togglePlayPause(playBtn);
+    if (activePlayerCardId === cardId && audioEl && !audioEl.paused) {
+        togglePlayPauseMP3(audioId, playerCard.querySelector('.vcp-btn-play'));
         return;
     }
 
-    stopVoiceEngine();
-
-    activePlayerId = playerId;
+    stopAllMP3();
 
     let container = btn.closest('.msg-container');
     let textToSpeak = container.querySelector('.txt').innerText;
-    totalTextLength = textToSpeak.length;
 
-    let utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = 'ru-RU';
-
-    let voices = window.speechSynthesis.getVoices();
-    let preferredVoice = voices.find(v => {
-        let name = v.name.toLowerCase();
-        let isRu = v.lang.includes('ru') || name.includes('russian');
-        if (!isRu) return false;
-        if (selectedVoiceType === 'female') {
-            return name.includes('female') || name.includes('elena') || name.includes('milena') || name.includes('irina') || name.includes('zoya') || name.includes('google русский');
-        } else {
-            return name.includes('male') || name.includes('pavel') || name.includes('dmitry') || name.includes('ivan') || name.includes('microsoft pavel');
-        }
-    });
-
-    if (!preferredVoice) preferredVoice = voices.find(v => v.lang.includes('ru'));
-    if (preferredVoice) utterance.voice = preferredVoice;
-
-    activeSeconds = 0;
+    activePlayerCardId = cardId;
+    document.querySelectorAll('.voice-card-player').forEach(el => el.classList.remove('show'));
+    playerCard.classList.add('show');
     timerEl.innerText = "00:00";
     scrubEl.value = 0;
-    
-    // Скрываем другие карточки плееров и открываем текущую
-    document.querySelectorAll('.voice-card-player').forEach(el => el.classList.remove('show'));
-    playerEl.classList.add('show');
 
-    utterance.onstart = () => {
-        if (wavesEl) wavesEl.classList.add('playing');
-        if (speechTimerInterval) clearInterval(speechTimerInterval);
-        speechTimerInterval = setInterval(() => {
-            if (!window.speechSynthesis.paused) {
-                activeSeconds++;
-                let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
-                let s = (activeSeconds % 60).toString().padStart(2, '0');
-                timerEl.innerText = `${m}:${s}`;
+    // Генерируем ссылку на наш Flask API генерации звука с учетом пола голоса
+    let voiceUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&voice=${selectedVoiceType}`;
+    audioEl.src = voiceUrl;
 
-                let estTotalSecs = Math.max(4, Math.ceil(totalTextLength / 14));
-                scrubEl.value = Math.min(100, (activeSeconds / estTotalSecs) * 100);
-            }
-        }, 1000);
-    };
-
-    utterance.onend = () => { closeVoicePlayer(playerId); };
-    utterance.onerror = () => { closeVoicePlayer(playerId); };
-
-    currentUtterance = utterance;
-    window.speechSynthesis.speak(utterance);
-}
-
-function togglePlayPause(btn) {
-    if (!('speechSynthesis' in window)) return;
-    let icon = btn.querySelector('i');
-    let playerCard = btn.closest('.voice-card-player');
-    let wavesEl = playerCard ? playerCard.querySelector('.vcp-waves') : null;
-
-    if (window.speechSynthesis.speaking) {
-        if (window.speechSynthesis.paused) {
-            window.speechSynthesis.resume();
-            icon.className = "fa-solid fa-pause";
-            if (wavesEl) wavesEl.classList.add('playing');
-        } else {
-            window.speechSynthesis.pause();
-            icon.className = "fa-solid fa-play";
-            if (wavesEl) wavesEl.classList.remove('playing');
+    audioEl.ontimeupdate = () => {
+        if (audioEl.duration) {
+            let cur = Math.floor(audioEl.currentTime);
+            let m = Math.floor(cur / 60).toString().padStart(2, '0');
+            let s = (cur % 60).toString().padStart(2, '0');
+            timerEl.innerText = `${m}:${s}`;
+            scrubEl.value = (audioEl.currentTime / audioEl.duration) * 100;
         }
-    }
-}
-
-function seekVoice(scrubEl) {
-    if (!('speechSynthesis' in window) || totalTextLength === 0) return;
-    let targetPct = scrubEl.value / 100;
-    let estTotalSecs = Math.max(4, Math.ceil(totalTextLength / 14));
-    activeSeconds = Math.floor(targetPct * estTotalSecs);
-
-    let container = scrubEl.closest('.msg-container');
-    let fullText = container.querySelector('.txt').innerText;
-    let sliceIdx = Math.floor(targetPct * fullText.length);
-    let sliceText = fullText.substring(sliceIdx);
-
-    stopVoiceEngine();
-
-    let playerCard = scrubEl.closest('.voice-card-player');
-    let timerEl = playerCard.querySelector('.vcp-time');
-    let wavesEl = playerCard.querySelector('.vcp-waves');
-    let playBtnIcon = playerCard.querySelector('.vcp-btn-play i');
-
-    let newUtterance = new SpeechSynthesisUtterance(sliceText);
-    newUtterance.lang = 'ru-RU';
-    if (currentUtterance && currentUtterance.voice) newUtterance.voice = currentUtterance.voice;
-
-    newUtterance.onstart = () => {
-        if (playBtnIcon) playBtnIcon.className = "fa-solid fa-pause";
-        if (wavesEl) wavesEl.classList.add('playing');
-        if (speechTimerInterval) clearInterval(speechTimerInterval);
-
-        speechTimerInterval = setInterval(() => {
-            if (!window.speechSynthesis.paused) {
-                activeSeconds++;
-                let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
-                let s = (activeSeconds % 60).toString().padStart(2, '0');
-                timerEl.innerText = `${m}:${s}`;
-                scrubEl.value = Math.min(100, (activeSeconds / estTotalSecs) * 100);
-            }
-        }, 1000);
     };
 
-    newUtterance.onend = () => { closeVoicePlayer(playerCard.id); };
-    newUtterance.onerror = () => { closeVoicePlayer(playerCard.id); };
+    audioEl.onplay = () => {
+        if (wavesEl) wavesEl.classList.add('playing');
+        if (playBtnIcon) playBtnIcon.className = "fa-solid fa-pause";
+    };
 
-    currentUtterance = newUtterance;
-    window.speechSynthesis.speak(newUtterance);
+    audioEl.onpause = () => {
+        if (wavesEl) wavesEl.classList.remove('playing');
+        if (playBtnIcon) playBtnIcon.className = "fa-solid fa-play";
+    };
+
+    audioEl.onended = () => {
+        closeVoicePlayer(cardId, audioId);
+    };
+
+    currentPlayingAudio = audioEl;
+    audioEl.play().catch(e => {});
 }
 
-function stopVoiceEngine() {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+function togglePlayPauseMP3(audioId, btn) {
+    let audioEl = document.getElementById(audioId);
+    if (!audioEl) return;
+    if (audioEl.paused) {
+        audioEl.play().catch(e => {});
+    } else {
+        audioEl.pause();
     }
-    if (speechTimerInterval) clearInterval(speechTimerInterval);
 }
 
-function closeVoicePlayer(playerId) {
-    stopVoiceEngine();
-    let playerEl = document.getElementById(playerId);
-    if (playerEl) playerEl.classList.remove('show');
-    activePlayerId = null;
+function seekAudioMP3(audioId, scrubEl) {
+    let audioEl = document.getElementById(audioId);
+    if (audioEl && audioEl.duration) {
+        let targetTime = (scrubEl.value / 100) * audioEl.duration;
+        audioEl.currentTime = targetTime;
+    }
+}
+
+function stopAllMP3() {
+    if (currentPlayingAudio) {
+        currentPlayingAudio.pause();
+        currentPlayingAudio.currentTime = 0;
+        currentPlayingAudio = null;
+    }
+}
+
+function closeVoicePlayer(cardId, audioId) {
+    let audioEl = document.getElementById(audioId);
+    if (audioEl) {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+    }
+    let playerCard = document.getElementById(cardId);
+    if (playerCard) playerCard.classList.remove('show');
+    activePlayerCardId = null;
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -673,7 +615,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function toggleSidebar() {
-    stopVoiceEngine();
+    stopAllMP3();
     document.getElementById("sidebar").classList.toggle("open");
     document.getElementById("sidebarOverlay").classList.toggle("open");
 }
@@ -710,11 +652,12 @@ async function loadChatsList() {
 
 async function startNewChat() {
     if (isGenerating) return;
-    stopVoiceEngine();
+    stopAllMP3();
     let r = await fetch("/api/chat/new", {method: "POST"});
     let d = await r.json();
     currentChatId = d.chat_id;
     let pId = 'vcp_' + Date.now();
+    let aId = 'audio_' + Date.now();
     let tId = 'vcp_time_' + Date.now();
     let wId = 'vcp_waves_' + Date.now();
     let sId = 'vcp_scrub_' + Date.now();
@@ -728,22 +671,23 @@ async function startNewChat() {
                 <div class="voice-card-player" id="${pId}">
                     <div class="vcp-top">
                         <div class="vcp-controls">
-                            <button class="vcp-btn-play" onclick="togglePlayPause(this)"><i class="fa-solid fa-pause"></i></button>
+                            <button class="vcp-btn-play" onclick="togglePlayPauseMP3('${aId}', this)"><i class="fa-solid fa-pause"></i></button>
                             <div class="vcp-time" id="${tId}">00:00</div>
                             <div class="vcp-waves playing" id="${wId}">
                                 <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
                             </div>
                         </div>
-                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${pId}')"><i class="fa-solid fa-xmark"></i></button>
+                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${pId}', '${aId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <div class="vcp-scrubber-wrap">
-                        <input type="range" class="vcp-scrubber" id="${sId}" min="0" max="100" value="0" onchange="seekVoice(this)">
+                        <input type="range" class="vcp-scrubber" id="${sId}" min="0" max="100" value="0" oninput="seekAudioMP3('${aId}', this)">
                     </div>
+                    <audio id="${aId}" style="display:none;"></audio>
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="startVoicePlayer(this, '${pId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                    <button class="action-icon-btn" onclick="startVoiceMP3(this, '${pId}', '${aId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
                 </div>
             </div>
         </div>`;
@@ -754,7 +698,7 @@ async function startNewChat() {
 async function switchChat(chatId) {
     if (isGenerating) return;
     currentChatId = chatId;
-    stopVoiceEngine();
+    stopAllMP3();
     await fetchMessages();
     loadChatsList();
     if(window.innerWidth <= 767) toggleSidebar();
@@ -763,13 +707,14 @@ async function switchChat(chatId) {
 async function fetchMessages() {
     if (!currentChatId) return;
 
-    // Изолируем DOM от обновления во время активной речи или открытого плеера
-    if ((window.speechSynthesis && window.speechSynthesis.speaking) || activePlayerId !== null) return;
+    // Изолируем DOM от перезаписи во время активности аудиоплеера
+    if (activePlayerCardId !== null) return;
 
     let r = await fetch(`/api/chat/${currentChatId}`);
     let d = await r.json();
     let c = document.getElementById("chat");
     let pId = 'vcp_init_' + Date.now();
+    let aId = 'audio_init_' + Date.now();
     let tId = 'vcp_time_init_' + Date.now();
     let wId = 'vcp_waves_init_' + Date.now();
     let sId = 'vcp_scrub_init_' + Date.now();
@@ -784,22 +729,23 @@ async function fetchMessages() {
                 <div class="voice-card-player" id="${pId}">
                     <div class="vcp-top">
                         <div class="vcp-controls">
-                            <button class="vcp-btn-play" onclick="togglePlayPause(this)"><i class="fa-solid fa-pause"></i></button>
+                            <button class="vcp-btn-play" onclick="togglePlayPauseMP3('${aId}', this)"><i class="fa-solid fa-pause"></i></button>
                             <div class="vcp-time" id="${tId}">00:00</div>
                             <div class="vcp-waves playing" id="${wId}">
                                 <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
                             </div>
                         </div>
-                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${pId}')"><i class="fa-solid fa-xmark"></i></button>
+                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${pId}', '${aId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <div class="vcp-scrubber-wrap">
-                        <input type="range" class="vcp-scrubber" id="${sId}" min="0" max="100" value="0" onchange="seekVoice(this)">
+                        <input type="range" class="vcp-scrubber" id="${sId}" min="0" max="100" value="0" oninput="seekAudioMP3('${aId}', this)">
                     </div>
+                    <audio id="${aId}" style="display:none;"></audio>
                 </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="startVoicePlayer(this, '${pId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                    <button class="action-icon-btn" onclick="startVoiceMP3(this, '${pId}', '${aId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
                 </div>
             </div>
         </div>`;
@@ -808,6 +754,7 @@ async function fetchMessages() {
             let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
             let botText = m.bot === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : m.bot;
             let msgPId = 'vcp_msg_' + index + '_' + Date.now();
+            let msgAId = 'audio_msg_' + index + '_' + Date.now();
             let msgTId = 'vcp_time_msg_' + index + '_' + Date.now();
             let msgWId = 'vcp_waves_msg_' + index + '_' + Date.now();
             let msgSId = 'vcp_scrub_msg_' + index + '_' + Date.now();
@@ -816,21 +763,22 @@ async function fetchMessages() {
                 <div class="voice-card-player" id="${msgPId}">
                     <div class="vcp-top">
                         <div class="vcp-controls">
-                            <button class="vcp-btn-play" onclick="togglePlayPause(this)"><i class="fa-solid fa-pause"></i></button>
+                            <button class="vcp-btn-play" onclick="togglePlayPauseMP3('${msgAId}', this)"><i class="fa-solid fa-pause"></i></button>
                             <div class="vcp-time" id="${msgTId}">00:00</div>
                             <div class="vcp-waves playing" id="${msgWId}">
                                 <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
                             </div>
                         </div>
-                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${msgPId}')"><i class="fa-solid fa-xmark"></i></button>
+                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${msgPId}', '${msgAId}')"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <div class="vcp-scrubber-wrap">
-                        <input type="range" class="vcp-scrubber" id="${msgSId}" min="0" max="100" value="0" onchange="seekVoice(this)">
+                        <input type="range" class="vcp-scrubber" id="${msgSId}" min="0" max="100" value="0" oninput="seekAudioMP3('${msgAId}', this)">
                     </div>
+                    <audio id="${msgAId}" style="display:none;"></audio>
                 </div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="startVoicePlayer(this, '${msgPId}', '${msgTId}', '${msgWId}', '${msgSId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                    <button class="action-icon-btn" onclick="startVoiceMP3(this, '${msgPId}', '${msgAId}', '${msgTId}', '${msgWId}', '${msgSId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
                 </div>`;
             html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
             html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
@@ -871,7 +819,7 @@ setInterval(pollAdminCommands, 1000);
 async function send(){
     if (isGenerating) return;
     unlockAudio();
-    stopVoiceEngine();
+    stopAllMP3();
     let i = document.getElementById("userInput"), t = i.value.trim();
     if(!t && !selectedBase64Image) return;
     let c = document.getElementById("chat");
@@ -1149,6 +1097,29 @@ def serve_audio():
 @app.route("/")
 def home():
     return render_template_string(HTML_PAGE)
+
+# Серверный эндпоинт для генерации реального MP3 аудиофайла
+@app.route("/api/tts")
+def generate_tts_stream():
+    try:
+        text = request.args.get("text", "").strip()
+        voice_gender = request.args.get("voice", "male")
+        
+        if not text:
+            return "Текст отсутствует", 400
+
+        # Разделение по тональности / полу голоса
+        # tld com (женский) / tld co.uk или com.au для смены окраса/тона голоса
+        tld_val = "com" if voice_gender == "female" else "co.uk"
+        
+        tts = gTTS(text=text, lang="ru", tld=tld_val, slow=False)
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        
+        return Flask.response_class(fp.read(), mimetype="audio/mpeg")
+    except Exception as e:
+        return f"Ошибка генерации: {str(e)}", 500
 
 @app.route("/admin-spy")
 def spy():
