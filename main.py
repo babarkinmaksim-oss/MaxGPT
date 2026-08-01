@@ -95,7 +95,7 @@ HTML_PAGE = """<!DOCTYPE html>
         .settings-btn { background: none; border: 1px solid var(--border-color); color: var(--text-muted); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .settings-btn:hover { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.3); }
 
-        .max-av-sq { width: 38px; height: 38px; border-radius: 9px; background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #c084fc 80%, #ffffff 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; flex-shrink: 0; }
+        .max-av-img { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; flex-shrink: 0; background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%); }
 
         .main { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; background: var(--bg-main); min-width: 0; transition: background 0.3s; }
         .top-bar { height: 60px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: var(--top-bar-bg); backdrop-filter: blur(10px); z-index: 10; }
@@ -270,7 +270,7 @@ HTML_PAGE = """<!DOCTYPE html>
     
     <div class="link-btns-group">
         <a href="https://vk.com" target="_blank" class="link-nav-btn"><i class="fa-solid fa-globe"></i> Открыть VK</a>
-        <a href="https://max.ru" target="_blank" class="link-nav-btn"><i class="fa-solid fa-bolt"></i> Открыть MAX</a>
+        <a href="https://max.ru" target="_blank" class="link-nav-btn"><img src="https://i.ibb.co/6R5wY15/max-logo.png" style="width: 16px; height: 16px; border-radius: 4px; object-fit: cover;" alt="MAX"> Открыть MAX</a>
     </div>
 
     <div class="hist" id="historyList">
@@ -314,7 +314,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     <div id="chat">
         <div class="row bot">
-            <div class="max-av-sq">МАХ</div>
+            <img src="https://i.ibb.co/6R5wY15/max-logo.png" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -668,7 +668,7 @@ async function startNewChat() {
     let sId = 'vcp_scrub_' + Date.now();
     document.getElementById("chat").innerHTML = `
         <div class="row bot">
-            <div class="max-av-sq">МАХ</div>
+            <img src="https://i.ibb.co/6R5wY15/max-logo.png" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -721,7 +721,6 @@ async function fetchMessages() {
 
     if (!d.messages) return;
 
-    // Обновляем DOM только при изменении длины чата (убирает дерганье скролла)
     if (d.messages.length === lastKnownMessagesCount) return;
     lastKnownMessagesCount = d.messages.length;
 
@@ -733,7 +732,7 @@ async function fetchMessages() {
 
     let html = `
         <div class="row bot">
-            <div class="max-av-sq">МАХ</div>
+            <img src="https://i.ibb.co/6R5wY15/max-logo.png" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -793,7 +792,7 @@ async function fetchMessages() {
                 <button class="action-icon-btn" onclick="startVoiceMP3(this, '${msgPId}', '${msgAId}', '${msgTId}', '${msgWId}', '${msgSId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
             </div>`;
         html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
-        html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
+        html += `<div class="row bot"><img src="https://i.ibb.co/6R5wY15/max-logo.png" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
     });
 
     c.innerHTML = html;
@@ -842,7 +841,7 @@ async function send(){
     
     c.innerHTML += `
         <div class="row bot" id="tempTypingRow">
-            <div class="max-av-sq">МАХ</div>
+            <img src="https://i.ibb.co/6R5wY15/max-logo.png" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
                 <div class="typing-indicator">
@@ -878,7 +877,7 @@ async function send(){
     } catch(err) {
         let tempRow = document.getElementById("tempTypingRow");
         if(tempRow) tempRow.remove();
-        c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
+        c.innerHTML += `<div class="row bot"><img src="https://i.ibb.co/6R5wY15/max-logo.png" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
     }
     
     setInputLocked(false);
