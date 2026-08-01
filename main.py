@@ -171,7 +171,7 @@ HTML_PAGE = """<!DOCTYPE html>
         textarea::placeholder { color: var(--text-muted); }
         textarea:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .attach-btn, .mic-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 8px; transition: 0.2s; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+        .attach-btn, .mic-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 8px; transition: 0.2s; display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; }
         .attach-btn:hover, .mic-btn:hover { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
         .attach-btn.active, .mic-btn.listening { color: #ef4444; background: rgba(239, 68, 68, 0.15); animation: pulseMic 1.5s infinite; }
         @keyframes pulseMic { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
@@ -361,11 +361,10 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="preview-remove" onclick="removeImage()" title="Удалить файл"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="input-row">
-                <!-- Добавлен атрибут capture="environment", теперь скрепка сразу открывает камеру на телефоне -->
-                <input type="file" id="imageInput" accept="image/*" capture="environment" style="display: none;" onchange="handleImageSelect(event)">
-                <button class="attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="Сделать фото / Прикрепить"><i class="fa-solid fa-paperclip"></i></button>
+                <!-- Убран принудительный capture, теперь телефон сам спросит: галерея или камера -->
+                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
+                <button class="attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="Прикрепить изображение"><i class="fa-solid fa-paperclip"></i></button>
                 <textarea id="userInput" placeholder="Сообщение или вопрос к фото..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
-                <!-- Кнопка голосового ввода (речь в текст) -->
                 <button class="mic-btn" id="micBtn" onclick="toggleSpeechRecognition()" title="Голосовой ввод"><i class="fa-solid fa-microphone"></i></button>
                 <button class="send-btn" id="sendBtn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
             </div>
@@ -439,7 +438,6 @@ function playBeepSound() {
     } catch(e) {}
 }
 
-// Функция голосового ввода (Речь -> Текст)
 let recognition = null;
 function toggleSpeechRecognition() {
     let micBtn = document.getElementById("micBtn");
