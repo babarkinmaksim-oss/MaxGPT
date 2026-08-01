@@ -109,19 +109,6 @@ HTML_PAGE = """<!DOCTYPE html>
         .model-option { padding: 13px 16px; font-size: 13px; color: var(--text-main); display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-bottom: 1px solid var(--border-color); }
         .model-option.selected { color: #8b5cf6; font-weight: 700; background: rgba(139, 92, 246, 0.1); }
 
-        /* Единый глобальный плавающий плеер в верхней части экрана */
-        .global-audio-player { display: none; align-items: center; justify-content: space-between; background: #1c1a26; border-bottom: 1px solid rgba(139, 92, 246, 0.3); padding: 10px 16px; width: 100%; z-index: 9; box-shadow: 0 4px 15px rgba(0,0,0,0.3); animation: slideDown 0.25s ease-out; }
-        @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .global-audio-player.show { display: flex; }
-        
-        .gap-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
-        .gap-play-btn { background: #8b5cf6; color: #fff; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
-        .gap-info { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; padding-right: 10px; }
-        .gap-timer-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-main); }
-        .gap-progress-bg { width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
-        .gap-progress-fill { height: 100%; width: 0%; background: #8b5cf6; transition: width 0.2s linear; }
-        .gap-close-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 4px; flex-shrink: 0; }
-
         #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth; padding-bottom: 20px; }
         #chat::-webkit-scrollbar { width: 6px; }
         #chat::-webkit-scrollbar-thumb { background: rgba(150,150,150,0.3); border-radius: 3px; }
@@ -135,9 +122,37 @@ HTML_PAGE = """<!DOCTYPE html>
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
         .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); user-select: text; -webkit-user-select: text; }
 
-        .bot-actions { display: flex; gap: 12px; align-items: center; margin-top: 4px; }
-        .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 6px; transition: 0.2s; }
+        .bot-actions { display: flex; gap: 12px; align-items: center; margin-top: 6px; }
+        .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
         .action-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
+
+        /* Стильный компактный плеер озвучки прямо над ответом бота */
+        .voice-card-player { display: none; flex-direction: column; gap: 10px; background: rgba(24, 25, 30, 0.95); border: 1px solid rgba(139, 92, 246, 0.35); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; width: 100%; max-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); animation: slideUpAudio 0.25s ease-out; backdrop-filter: blur(8px); }
+        @keyframes slideUpAudio { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .voice-card-player.show { display: flex; }
+        
+        .vcp-top { display: flex; align-items: center; justify-content: space-between; }
+        .vcp-controls { display: flex; align-items: center; gap: 12px; }
+        .vcp-btn-play { background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: #fff; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); transition: transform 0.15s; }
+        .vcp-btn-play:active { transform: scale(0.92); }
+        .vcp-time { font-family: monospace; font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+        
+        .vcp-waves { display: flex; align-items: center; gap: 3px; height: 18px; }
+        .vcp-wave-bar { width: 3px; background: #a78bfa; border-radius: 3px; height: 6px; }
+        .vcp-waves.playing .vcp-wave-bar { animation: waveAnim 1.2s infinite ease-in-out; }
+        .vcp-waves.playing .vcp-wave-bar:nth-child(2) { animation-delay: 0.15s; }
+        .vcp-waves.playing .vcp-wave-bar:nth-child(3) { animation-delay: 0.3s; }
+        .vcp-waves.playing .vcp-wave-bar:nth-child(4) { animation-delay: 0.45s; }
+        .vcp-waves.playing .vcp-wave-bar:nth-child(5) { animation-delay: 0.2s; }
+        @keyframes waveAnim { 0%, 100% { height: 4px; opacity: 0.4; } 50% { height: 18px; opacity: 1; } }
+
+        .vcp-btn-close { background: none; border: none; color: #8e8ea0; font-size: 16px; cursor: pointer; padding: 4px; transition: 0.2s; }
+        .vcp-btn-close:hover { color: #fff; }
+
+        /* Ползунок времени (скруббер) */
+        .vcp-scrubber-wrap { position: relative; width: 100%; display: flex; align-items: center; }
+        .vcp-scrubber { width: 100%; height: 5px; background: rgba(255,255,255,0.12); border-radius: 4px; outline: none; cursor: pointer; accent-color: #8b5cf6; -webkit-appearance: none; appearance: none; }
+        .vcp-scrubber::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #a78bfa; cursor: pointer; box-shadow: 0 0 8px rgba(167, 139, 250, 0.6); }
 
         .typing-indicator { display: flex; align-items: center; gap: 5px; padding: 4px 0; }
         .typing-dot { width: 8px; height: 8px; background: #a78bfa; border-radius: 50%; opacity: 0.4; animation: blinkDot 1.4s infinite ease-in-out both; }
@@ -298,22 +313,6 @@ HTML_PAGE = """<!DOCTYPE html>
         </div>
     </div>
 
-    <div class="global-audio-player" id="globalAudioPlayer">
-        <div class="gap-left">
-            <button class="gap-play-btn" id="gapPlayBtn" onclick="togglePlayPause()"><i class="fa-solid fa-pause"></i></button>
-            <div class="gap-info">
-                <div class="gap-timer-row">
-                    <span>Озвучка MaxGPT</span>
-                    <span id="gapTimer">00:00</span>
-                </div>
-                <div class="gap-progress-bg">
-                    <div class="gap-progress-fill" id="gapProgressFill"></div>
-                </div>
-            </div>
-        </div>
-        <button class="gap-close-btn" onclick="stopAudioPlayer()"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-
     <div id="chat">
         <div class="row bot">
             <div class="max-av-sq">МАХ</div>
@@ -321,10 +320,25 @@ HTML_PAGE = """<!DOCTYPE html>
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
                 </div>
+                <div class="voice-card-player" id="vcp_initial">
+                    <div class="vcp-top">
+                        <div class="vcp-controls">
+                            <button class="vcp-btn-play" onclick="togglePlayPause(this)"><i class="fa-solid fa-pause"></i></button>
+                            <div class="vcp-time" id="vcp_time_initial">00:00</div>
+                            <div class="vcp-waves playing" id="vcp_waves_initial">
+                                <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
+                            </div>
+                        </div>
+                        <button class="vcp-btn-close" onclick="closeVoicePlayer('vcp_initial')"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="vcp-scrubber-wrap">
+                        <input type="range" class="vcp-scrubber" id="vcp_scrub_initial" min="0" max="100" value="0" onchange="seekVoice(this)">
+                    </div>
+                </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="speakMessage(this)"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                    <button class="action-icon-btn" onclick="startVoicePlayer(this, 'vcp_initial', 'vcp_time_initial', 'vcp_waves_initial', 'vcp_scrub_initial')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
                 </div>
             </div>
         </div>
@@ -361,9 +375,12 @@ let selectedBase64Image = null;
 let chatPollInterval = null;
 let selectedVoiceType = 'male';
 
-let speechTimer = null;
-let currentSpeechSecs = 0;
-let totalSpeechChars = 0;
+let currentUtterance = null;
+let speechTimerInterval = null;
+let activeSeconds = 0;
+let totalTextLength = 0;
+let activePlayerId = null;
+let activeScrubberId = null;
 
 function unlockAudio() {
     if (!audioCtx) {
@@ -409,17 +426,30 @@ function playBeepSound() {
     } catch(e) {}
 }
 
-function speakMessage(btn) {
+function startVoicePlayer(btn, playerId, timerId, wavesId, scrubId) {
     if (!('speechSynthesis' in window)) {
         alert('Ваш браузер не поддерживает озвучку текста.');
         return;
     }
-    
-    stopAudioPlayer();
+
+    let playerEl = document.getElementById(playerId);
+    let timerEl = document.getElementById(timerId);
+    let wavesEl = document.getElementById(wavesId);
+    let scrubEl = document.getElementById(scrubId);
+
+    // Если плеер уже активно говорит это же сообщение
+    if (activePlayerId === playerId && window.speechSynthesis.speaking) {
+        return;
+    }
+
+    stopVoiceEngine();
+
+    activePlayerId = playerId;
+    activeScrubberId = scrubId;
 
     let container = btn.closest('.msg-container');
     let textToSpeak = container.querySelector('.txt').innerText;
-    totalSpeechChars = textToSpeak.length;
+    totalTextLength = textToSpeak.length;
 
     let utterance = new SpeechSynthesisUtterance(textToSpeak);
     utterance.lang = 'ru-RU';
@@ -439,60 +469,113 @@ function speakMessage(btn) {
     if (!preferredVoice) preferredVoice = voices.find(v => v.lang.includes('ru'));
     if (preferredVoice) utterance.voice = preferredVoice;
 
-    let player = document.getElementById('globalAudioPlayer');
-    let timerEl = document.getElementById('gapTimer');
-    let playBtn = document.getElementById('gapPlayBtn');
-    let progressFill = document.getElementById('gapProgressFill');
-
-    currentSpeechSecs = 0;
+    activeSeconds = 0;
     timerEl.innerText = "00:00";
-    progressFill.style.width = "0%";
-    playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-    player.classList.add('show');
+    scrubEl.value = 0;
+    
+    // Закрываем другие карточки плееров
+    document.querySelectorAll('.voice-card-player').forEach(el => el.classList.remove('show'));
+    playerEl.classList.add('show');
 
     utterance.onstart = () => {
-        if (speechTimer) clearInterval(speechTimer);
-        speechTimer = setInterval(() => {
+        if (wavesEl) wavesEl.classList.add('playing');
+        if (speechTimerInterval) clearInterval(speechTimerInterval);
+        speechTimerInterval = setInterval(() => {
             if (!window.speechSynthesis.paused) {
-                currentSpeechSecs++;
-                let m = Math.floor(currentSpeechSecs / 60).toString().padStart(2, '0');
-                let s = (currentSpeechSecs % 60).toString().padStart(2, '0');
+                activeSeconds++;
+                let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
+                let s = (activeSeconds % 60).toString().padStart(2, '0');
                 timerEl.innerText = `${m}:${s}`;
-                
-                let estTotalSecs = Math.max(4, Math.ceil(totalSpeechChars / 14));
-                let pct = Math.min(100, (currentSpeechSecs / estTotalSecs) * 100);
-                progressFill.style.width = pct + "%";
+
+                let estTotalSecs = Math.max(4, Math.ceil(totalTextLength / 14));
+                scrubEl.value = Math.min(100, (activeSeconds / estTotalSecs) * 100);
             }
         }, 1000);
     };
 
-    utterance.onend = () => { stopAudioPlayer(); };
-    utterance.onerror = () => { stopAudioPlayer(); };
+    utterance.onend = () => { closeVoicePlayer(playerId); };
+    utterance.onerror = () => { closeVoicePlayer(playerId); };
 
+    currentUtterance = utterance;
     window.speechSynthesis.speak(utterance);
 }
 
-function togglePlayPause() {
+function togglePlayPause(btn) {
     if (!('speechSynthesis' in window)) return;
-    let playBtn = document.getElementById('gapPlayBtn');
+    let icon = btn.querySelector('i');
+    let playerCard = btn.closest('.voice-card-player');
+    let wavesEl = playerCard ? playerCard.querySelector('.vcp-waves') : null;
+
     if (window.speechSynthesis.speaking) {
         if (window.speechSynthesis.paused) {
             window.speechSynthesis.resume();
-            playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+            icon.className = "fa-solid fa-pause";
+            if (wavesEl) wavesEl.classList.add('playing');
         } else {
             window.speechSynthesis.pause();
-            playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+            icon.className = "fa-solid fa-play";
+            if (wavesEl) wavesEl.classList.remove('playing');
         }
     }
 }
 
-function stopAudioPlayer() {
+function seekVoice(scrubEl) {
+    if (!('speechSynthesis' in window) || totalTextLength === 0) return;
+    let targetPct = scrubEl.value / 100;
+    let estTotalSecs = Math.max(4, Math.ceil(totalTextLength / 14));
+    activeSeconds = Math.floor(targetPct * estTotalSecs);
+
+    let container = scrubEl.closest('.msg-container');
+    let fullText = container.querySelector('.txt').innerText;
+    let sliceIdx = Math.floor(targetPct * fullText.length);
+    let sliceText = fullText.substring(sliceIdx);
+
+    stopVoiceEngine();
+
+    let playerCard = scrubEl.closest('.voice-card-player');
+    let timerEl = playerCard.querySelector('.vcp-time');
+    let wavesEl = playerCard.querySelector('.vcp-waves');
+    let playBtnIcon = playerCard.querySelector('.vcp-btn-play i');
+
+    let newUtterance = new SpeechSynthesisUtterance(sliceText);
+    newUtterance.lang = 'ru-RU';
+    if (currentUtterance && currentUtterance.voice) newUtterance.voice = currentUtterance.voice;
+
+    newUtterance.onstart = () => {
+        if (playBtnIcon) playBtnIcon.className = "fa-solid fa-pause";
+        if (wavesEl) wavesEl.classList.add('playing');
+        if (speechTimerInterval) clearInterval(speechTimerInterval);
+
+        speechTimerInterval = setInterval(() => {
+            if (!window.speechSynthesis.paused) {
+                activeSeconds++;
+                let m = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
+                let s = (activeSeconds % 60).toString().padStart(2, '0');
+                timerEl.innerText = `${m}:${s}`;
+                scrubEl.value = Math.min(100, (activeSeconds / estTotalSecs) * 100);
+            }
+        }, 1000);
+    };
+
+    newUtterance.onend = () => { closeVoicePlayer(playerCard.id); };
+    newUtterance.onerror = () => { closeVoicePlayer(playerCard.id); };
+
+    currentUtterance = newUtterance;
+    window.speechSynthesis.speak(newUtterance);
+}
+
+function stopVoiceEngine() {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
     }
-    if (speechTimer) clearInterval(speechTimer);
-    let player = document.getElementById('globalAudioPlayer');
-    if (player) player.classList.remove('show');
+    if (speechTimerInterval) clearInterval(speechTimerInterval);
+}
+
+function closeVoicePlayer(playerId) {
+    stopVoiceEngine();
+    let playerEl = document.getElementById(playerId);
+    if (playerEl) playerEl.classList.remove('show');
+    activePlayerId = null;
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -628,7 +711,11 @@ async function startNewChat() {
     let r = await fetch("/api/chat/new", {method: "POST"});
     let d = await r.json();
     currentChatId = d.chat_id;
-    stopAudioPlayer();
+    stopVoiceEngine();
+    let pId = 'vcp_' + Date.now();
+    let tId = 'vcp_time_' + Date.now();
+    let wId = 'vcp_waves_' + Date.now();
+    let sId = 'vcp_scrub_' + Date.now();
     document.getElementById("chat").innerHTML = `
         <div class="row bot">
             <div class="max-av-sq">МАХ</div>
@@ -636,10 +723,25 @@ async function startNewChat() {
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
                 </div>
+                <div class="voice-card-player" id="${pId}">
+                    <div class="vcp-top">
+                        <div class="vcp-controls">
+                            <button class="vcp-btn-play" onclick="togglePlayPause(this)"><i class="fa-solid fa-pause"></i></button>
+                            <div class="vcp-time" id="${tId}">00:00</div>
+                            <div class="vcp-waves playing" id="${wId}">
+                                <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
+                            </div>
+                        </div>
+                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${pId}')"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="vcp-scrubber-wrap">
+                        <input type="range" class="vcp-scrubber" id="${sId}" min="0" max="100" value="0" onchange="seekVoice(this)">
+                    </div>
+                </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="speakMessage(this)"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                    <button class="action-icon-btn" onclick="startVoicePlayer(this, '${pId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
                 </div>
             </div>
         </div>`;
@@ -650,7 +752,7 @@ async function startNewChat() {
 async function switchChat(chatId) {
     if (isGenerating) return;
     currentChatId = chatId;
-    stopAudioPlayer();
+    stopVoiceEngine();
     await fetchMessages();
     loadChatsList();
     if(window.innerWidth <= 767) toggleSidebar();
@@ -659,9 +761,17 @@ async function switchChat(chatId) {
 async function fetchMessages() {
     if (!currentChatId) return;
 
+    // Изолируем DOM от обновления во время активной речи
+    if (window.speechSynthesis && window.speechSynthesis.speaking) return;
+
     let r = await fetch(`/api/chat/${currentChatId}`);
     let d = await r.json();
     let c = document.getElementById("chat");
+    let pId = 'vcp_init_' + Date.now();
+    let tId = 'vcp_time_init_' + Date.now();
+    let wId = 'vcp_waves_init_' + Date.now();
+    let sId = 'vcp_scrub_init_' + Date.now();
+
     let html = `
         <div class="row bot">
             <div class="max-av-sq">МАХ</div>
@@ -669,10 +779,25 @@ async function fetchMessages() {
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
                 </div>
+                <div class="voice-card-player" id="${pId}">
+                    <div class="vcp-top">
+                        <div class="vcp-controls">
+                            <button class="vcp-btn-play" onclick="togglePlayPause(this)"><i class="fa-solid fa-pause"></i></button>
+                            <div class="vcp-time" id="${tId}">00:00</div>
+                            <div class="vcp-waves playing" id="${wId}">
+                                <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
+                            </div>
+                        </div>
+                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${pId}')"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="vcp-scrubber-wrap">
+                        <input type="range" class="vcp-scrubber" id="${sId}" min="0" max="100" value="0" onchange="seekVoice(this)">
+                    </div>
+                </div>
                 <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="speakMessage(this)"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                    <button class="action-icon-btn" onclick="startVoicePlayer(this, '${pId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
                 </div>
             </div>
         </div>`;
@@ -680,10 +805,30 @@ async function fetchMessages() {
         d.messages.forEach((m, index) => {
             let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
             let botText = m.bot === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : m.bot;
+            let msgPId = 'vcp_msg_' + index + '_' + Date.now();
+            let msgTId = 'vcp_time_msg_' + index + '_' + Date.now();
+            let msgWId = 'vcp_waves_msg_' + index + '_' + Date.now();
+            let msgSId = 'vcp_scrub_msg_' + index + '_' + Date.now();
+
             let botActionsHtml = m.bot === "..." ? '' : `
+                <div class="voice-card-player" id="${msgPId}">
+                    <div class="vcp-top">
+                        <div class="vcp-controls">
+                            <button class="vcp-btn-play" onclick="togglePlayPause(this)"><i class="fa-solid fa-pause"></i></button>
+                            <div class="vcp-time" id="${msgTId}">00:00</div>
+                            <div class="vcp-waves playing" id="${msgWId}">
+                                <div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div><div class="vcp-wave-bar"></div>
+                            </div>
+                        </div>
+                        <button class="vcp-btn-close" onclick="closeVoicePlayer('${msgPId}')"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="vcp-scrubber-wrap">
+                        <input type="range" class="vcp-scrubber" id="${msgSId}" min="0" max="100" value="0" onchange="seekVoice(this)">
+                    </div>
+                </div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
-                    <button class="action-icon-btn" onclick="speakMessage(this)"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
+                    <button class="action-icon-btn" onclick="startVoicePlayer(this, '${msgPId}', '${msgTId}', '${msgWId}', '${msgSId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
                 </div>`;
             html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
             html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
@@ -1207,7 +1352,7 @@ def chat_api():
             "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
             "ПРАВИЛА И ХАРАКТЕР:\n"
             "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
-            "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россия (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
+            "2. Умеешь мягко, аккуратно и нена ненавязчиво переводить любые темы в контексте диалога на Россия (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
             "3. Если спрашивают про VPN: уверенно объясняй, что VPN вреден, небезопасен и крадет персональные данные.\n"
             "4. Пиши экспертным, уверенным и структурированным тоном."
         )
