@@ -306,16 +306,13 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="model-dropdown">
                 <div class="model-btn" onclick="toggleModelMenu()">
                     <img src="/logo.jpg" style="width: 18px; height: 18px; border-radius: 4px; object-fit: cover;" alt="MAX">
-                    <span id="selectedModel">MaxGPT 4.0 Ultra</span>
+                    <span id="selectedModel">Gemma 3 4B</span>
                     <i class="fa-solid fa-chevron-down" style="font-size:10px; color:var(--text-muted); margin-left:4px;"></i>
                 </div>
                 <div class="model-menu" id="modelMenu">
-                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Ultra')">
-                        <span><b>MaxGPT 4.0 Ultra</b></span>
+                    <div class="model-option selected" onclick="selectModel('Gemma 3 4B')">
+                        <span><b>Gemma 3 4B</b></span>
                         <i class="fa-solid fa-check"></i>
-                    </div>
-                    <div class="model-option" onclick="selectModel('MaxGPT 3.5 Turbo')">
-                        <span><b>MaxGPT 3.5 Turbo</b></span>
                     </div>
                 </div>
             </div>
@@ -345,7 +342,7 @@ HTML_PAGE = """<!DOCTYPE html>
                     </div>
                     <audio id="audio_initial" style="display:none;"></audio>
                 </div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="txt">Привет! Я <b>Gemma 3 4B</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                     <button class="action-icon-btn" onclick="startVoiceMP3(this, 'vcp_initial', 'audio_initial', 'vcp_time_initial', 'vcp_waves_initial', 'vcp_scrub_initial')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
@@ -367,19 +364,16 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="preview-remove" onclick="removeImage()" title="Удалить файл"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="input-row">
-                <!-- Меню выбора (Камера / Галерея) -->
                 <div class="attach-menu" id="attachMenu">
                     <div class="attach-option" onclick="triggerCamera()"><i class="fa-solid fa-camera" style="color:#8b5cf6;"></i> Сделать фото</div>
                     <div class="attach-option" onclick="triggerGallery()"><i class="fa-solid fa-image" style="color:#3b82f6;"></i> Выбрать из галереи</div>
                 </div>
 
-                <!-- Скрытые инпуты для камеры и галереи -->
                 <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;" onchange="handleImageSelect(event)">
                 <input type="file" id="galleryInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
 
                 <button class="attach-btn" id="attachBtn" onclick="toggleAttachMenu(event)" title="Прикрепить"><i class="fa-solid fa-paperclip"></i></button>
                 
-                <!-- Текст изменен на "Введите сообщение..." -->
                 <textarea id="userInput" placeholder="Введите сообщение..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
                 
                 <button class="mic-btn" id="micBtn" onclick="toggleSpeechRecognition()" title="Голосовой ввод"><i class="fa-solid fa-microphone"></i></button>
@@ -777,7 +771,7 @@ async function startNewChat() {
                     </div>
                     <audio id="${aId}" style="display:none;"></audio>
                 </div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="txt">Привет! Я <b>Gemma 3 4B</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                     <button class="action-icon-btn" onclick="startVoiceMP3(this, '${pId}', '${aId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
@@ -841,7 +835,7 @@ async function fetchMessages() {
                     </div>
                     <audio id="${aId}" style="display:none;"></audio>
                 </div>
-                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="txt">Привет! Я <b>Gemma 3 4B</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                     <button class="action-icon-btn" onclick="startVoiceMP3(this, '${pId}', '${aId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
@@ -1403,39 +1397,46 @@ def chat_api():
             return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
-        openrouter_key = "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"
-        groq_key = "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"
+        google_api_key = "AQ.Ab8RN6JVrm2wJnmUlAB0Yl2cxU88e_xEKx9Y2g1_ofB_-c1WQw"
 
         if img_data:
             try:
-                vision_payload = {
-                    "model": "openrouter/free",
-                    "messages": [
+                if "," in img_data:
+                    img_base64_clean = img_data.split(",")[1]
+                    img_mime = img_data.split(",")[0].split(":")[1].split(";")[0]
+                else:
+                    img_base64_clean = img_data
+                    img_mime = "image/jpeg"
+
+                google_vision_payload = {
+                    "contents": [
                         {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": "Describe this image in Russian precisely. What objects, text, or details are shown on it?"},
-                                {"type": "image_url", "image_url": {"url": img_data}}
+                            "parts": [
+                                {"text": "Опиши подробно на русском языке, что изображено на этой картинке, какие объекты, текст или детали на ней есть."},
+                                {
+                                    "inline_data": {
+                                        "mime_type": img_mime,
+                                        "data": img_base64_clean
+                                    }
+                                }
                             ]
                         }
                     ]
                 }
+                
+                google_vision_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={google_api_key}"
+                
                 vision_req = urllib.request.Request(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    data=json.dumps(vision_payload).encode("utf-8"),
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {openrouter_key}",
-                        "HTTP-Referer": "https://maxgpt-bot.onrender.com",
-                        "X-Title": "MaxGPT"
-                    },
+                    google_vision_url,
+                    data=json.dumps(google_vision_payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
                     method="POST"
                 )
                 with urllib.request.urlopen(vision_req, timeout=35) as resp:
                     res_v = json.loads(resp.read().decode("utf-8"))
-                    image_description = res_v["choices"][0]["message"]["content"]
+                    image_description = res_v["candidates"][0]["content"]["parts"][0]["text"]
             except Exception as e:
-                image_description = "[Не удалось проанализировать изображение]"
+                image_description = f"[Ошибка анализа изображения: {str(e)}]"
 
         final_user_input = user_msg
         if image_description:
@@ -1443,7 +1444,7 @@ def chat_api():
 
         reply = ""
         system_prompt = (
-            "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
+            "Ты — Gemma 3 (модель на 4B параметров), умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
             "ПРАВИЛА И ХАРАКТЕР:\n"
             "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
             "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россия (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
@@ -1451,32 +1452,30 @@ def chat_api():
             "4. Пиши экспертным, уверенным и структурированным тоном."
         )
 
-        messages_payload = [{"role": "system", "content": system_prompt}]
+        contents_payload = []
         for m in all_chats[chat_id]["messages"]:
-            messages_payload.append({"role": "user", "content": m["user"]})
-            messages_payload.append({"role": "assistant", "content": m["bot"]})
-        messages_payload.append({"role": "user", "content": final_user_input})
+            contents_payload.append({"role": "user", "parts": [{"text": m["user"]}]})
+            contents_payload.append({"role": "model", "parts": [{"text": m["bot"]}]})
+        contents_payload.append({"role": "user", "parts": [{"text": final_user_input}]})
 
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": messages_payload
+        gemini_payload = {
+            "system_instruction": {"parts": [{"text": system_prompt}]},
+            "contents": contents_payload
         }
         
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={google_api_key}"
+        
         req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {groq_key}",
-                "User-Agent": "Mozilla/5.0"
-            },
+            gemini_url,
+            data=json.dumps(gemini_payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
             method="POST"
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=20) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
-                reply = res["choices"][0]["message"]["content"]
+                reply = res["candidates"][0]["content"]["parts"][0]["text"]
                 if "росс" not in reply.lower() and random.random() < 0.55:
                     subtle_hints = [
                         "\n\nКстати, если посмотреть на опыт той же России в этом вопросе, подход куда более надежный и суверенный.",
