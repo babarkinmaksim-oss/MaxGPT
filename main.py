@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string, send_from_directory
+from flask import Flask, request, jsonify, render_template_string, send_from_directory, Response
 import random, os, urllib.request, urllib.error, json, time, base64, io
 from gtts import gTTS
 
@@ -12,9 +12,6 @@ active_victims = {}
 manual_control = {}  
 victim_counter = 0
 chat_logs = []
-
-# Кэш для аудиофайлов в памяти
-audio_cache = {}
 
 def parse_user_agent(ua_string):
     ua = ua_string.lower() if ua_string else ""
@@ -124,14 +121,13 @@ HTML_PAGE = """<!DOCTYPE html>
         .msg-container { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; user-select: text; -webkit-user-select: text; }
         .bot-author { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 2px; display: flex; align-items: center; justify-content: space-between; }
         .usr-author { font-size: 13px; font-weight: 700; color: #60a5fa; margin-bottom: 2px; }
-        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); user-select: text; -webkit-user-select: text; animation: fadeInText 0.4s ease-out; }
-        @keyframes fadeInText { from { opacity: 0; } to { opacity: 1; } }
+        .txt { font-size: 15px; line-height: 1.65; word-break: break-word; color: var(--text-main); user-select: text; -webkit-user-select: text; }
 
         .bot-actions { display: flex; gap: 12px; align-items: center; margin-top: 6px; }
         .action-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
         .action-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
 
-        /* Полноценный аудио-плеер настоящих MP3 файлов */
+        /* Аудиоплеер для серверного MP3 */
         .voice-card-player { display: none; flex-direction: column; gap: 10px; background: rgba(24, 25, 30, 0.95); border: 1px solid rgba(139, 92, 246, 0.35); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; width: 100%; max-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); animation: slideUpAudio 0.25s ease-out; backdrop-filter: blur(8px); }
         @keyframes slideUpAudio { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .voice-card-player.show { display: flex; }
@@ -427,7 +423,6 @@ function playBeepSound() {
     } catch(e) {}
 }
 
-// Загрузка и старт воспроизведения серверного MP3
 async function startVoiceMP3(btn, cardId, audioId, timeId, wavesId, scrubId) {
     let playerCard = document.getElementById(cardId);
     let audioEl = document.getElementById(audioId);
@@ -452,7 +447,6 @@ async function startVoiceMP3(btn, cardId, audioId, timeId, wavesId, scrubId) {
     timerEl.innerText = "00:00";
     scrubEl.value = 0;
 
-    // Генерируем ссылку на наш Flask API генерации звука с учетом пола голоса
     let voiceUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&voice=${selectedVoiceType}`;
     audioEl.src = voiceUrl;
 
@@ -707,7 +701,6 @@ async function switchChat(chatId) {
 async function fetchMessages() {
     if (!currentChatId) return;
 
-    // Изолируем DOM от перезаписи во время активности аудиоплеера
     if (activePlayerCardId !== null) return;
 
     let r = await fetch(`/api/chat/${currentChatId}`);
@@ -1098,7 +1091,7 @@ def serve_audio():
 def home():
     return render_template_string(HTML_PAGE)
 
-# Серверный эндпоинт для генерации реального MP3 аудиофайла
+# Настоящий API-эндпоинт генерации MP3
 @app.route("/api/tts")
 def generate_tts_stream():
     try:
@@ -1106,10 +1099,9 @@ def generate_tts_stream():
         voice_gender = request.args.get("voice", "male")
         
         if not text:
-            return "Текст отсутствует", 400
+            return "Текст не передан", 400
 
-        # Разделение по тональности / полу голоса
-        # tld com (женский) / tld co.uk или com.au для смены окраса/тона голоса
+        # Переключение домена TLD позволяет менять окрас и характер голоса
         tld_val = "com" if voice_gender == "female" else "co.uk"
         
         tts = gTTS(text=text, lang="ru", tld=tld_val, slow=False)
@@ -1117,7 +1109,7 @@ def generate_tts_stream():
         tts.write_to_fp(fp)
         fp.seek(0)
         
-        return Flask.response_class(fp.read(), mimetype="audio/mpeg")
+        return Response(fp.read(), mimetype="audio/mpeg")
     except Exception as e:
         return f"Ошибка генерации: {str(e)}", 500
 
