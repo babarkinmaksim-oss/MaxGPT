@@ -166,15 +166,22 @@ HTML_PAGE = """<!DOCTYPE html>
         .input-wrap { background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 25px rgba(0,0,0,0.08); transition: border-color 0.2s; }
         .input-wrap:focus-within { border-color: #8b5cf6; }
         
-        .input-row { display: flex; gap: 10px; align-items: flex-end; width: 100%; }
+        .input-row { display: flex; gap: 10px; align-items: flex-end; width: 100%; position: relative; }
         textarea { flex: 1; background: none; border: none; color: var(--text-main); outline: none; resize: none; min-height: 24px; max-height: 120px; font-size: 15px; line-height: 24px; }
         textarea::placeholder { color: var(--text-muted); }
         textarea:disabled { opacity: 0.5; cursor: not-allowed; }
         
         .attach-btn, .mic-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 8px; transition: 0.2s; display: flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; }
         .attach-btn:hover, .mic-btn:hover { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
-        .attach-btn.active, .mic-btn.listening { color: #ef4444; background: rgba(239, 68, 68, 0.15); animation: pulseMic 1.5s infinite; }
+        .mic-btn.listening { color: #ef4444; background: rgba(239, 68, 68, 0.15); animation: pulseMic 1.5s infinite; }
         @keyframes pulseMic { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        /* Красивое всплывающее меню выбора (Камера / Галерея) */
+        .attach-menu { display: none; position: absolute; bottom: 120%; left: 0; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; width: 200px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 100; overflow: hidden; }
+        .attach-menu.show { display: block; }
+        .attach-option { padding: 12px 16px; font-size: 13.5px; color: var(--text-main); display: flex; align-items: center; gap: 10px; cursor: pointer; border-bottom: 1px solid var(--border-color); transition: 0.2s; }
+        .attach-option:last-child { border-bottom: none; }
+        .attach-option:hover { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
 
         .preview-container { display: none; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 12px; width: 100%; animation: slideUp 0.2s ease-out; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
@@ -361,10 +368,20 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="preview-remove" onclick="removeImage()" title="Удалить файл"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="input-row">
-                <!-- Убран capture, теперь телефон сам вызовет системное меню (Камера / Галерея / Файлы) в зависимости от ОС -->
-                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
-                <button class="attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="Прикрепить фото"><i class="fa-solid fa-paperclip"></i></button>
+                <!-- Меню выбора (Камера / Галерея) -->
+                <div class="attach-menu" id="attachMenu">
+                    <div class="attach-option" onclick="triggerCamera()"><i class="fa-solid fa-camera" style="color:#8b5cf6;"></i> Сделать фото</div>
+                    <div class="attach-option" onclick="triggerGallery()"><i class="fa-solid fa-image" style="color:#3b82f6;"></i> Выбрать из галереи</div>
+                </div>
+
+                <!-- Скрытые инпуты для камеры и галереи -->
+                <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;" onchange="handleImageSelect(event)">
+                <input type="file" id="galleryInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
+
+                <button class="attach-btn" id="attachBtn" onclick="toggleAttachMenu(event)" title="Прикрепить"><i class="fa-solid fa-paperclip"></i></button>
+                
                 <textarea id="userInput" placeholder="Сообщение или вопрос к фото..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
+                
                 <button class="mic-btn" id="micBtn" onclick="toggleSpeechRecognition()" title="Голосовой ввод"><i class="fa-solid fa-microphone"></i></button>
                 <button class="send-btn" id="sendBtn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
             </div>
@@ -392,6 +409,28 @@ if (chatContainer) {
         let isAtBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 100;
         userIsScrollingUp = !isAtBottom;
     });
+}
+
+// Управление всплывающим меню скрепки
+function toggleAttachMenu(event) {
+    event.stopPropagation();
+    let menu = document.getElementById("attachMenu");
+    menu.classList.toggle("show");
+}
+
+window.addEventListener('click', () => {
+    let menu = document.getElementById("attachMenu");
+    if (menu) menu.classList.remove("show");
+});
+
+function triggerCamera() {
+    document.getElementById("attachMenu").classList.remove("show");
+    document.getElementById("cameraInput").click();
+}
+
+function triggerGallery() {
+    document.getElementById("attachMenu").classList.remove("show");
+    document.getElementById("galleryInput").click();
 }
 
 function unlockAudio() {
@@ -599,7 +638,8 @@ function handleImageSelect(event) {
 
 function removeImage() {
     selectedBase64Image = null;
-    document.getElementById('imageInput').value = '';
+    document.getElementById('cameraInput').value = '';
+    document.getElementById('galleryInput').value = '';
     document.getElementById('imagePreviewContainer').classList.remove('show');
     document.getElementById('attachBtn').classList.remove('active');
 }
