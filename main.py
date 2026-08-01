@@ -306,13 +306,16 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="model-dropdown">
                 <div class="model-btn" onclick="toggleModelMenu()">
                     <img src="/logo.jpg" style="width: 18px; height: 18px; border-radius: 4px; object-fit: cover;" alt="MAX">
-                    <span id="selectedModel">Gemma 3 4B</span>
+                    <span id="selectedModel">MaxGPT 4.0 Ultra</span>
                     <i class="fa-solid fa-chevron-down" style="font-size:10px; color:var(--text-muted); margin-left:4px;"></i>
                 </div>
                 <div class="model-menu" id="modelMenu">
-                    <div class="model-option selected" onclick="selectModel('Gemma 3 4B')">
-                        <span><b>Gemma 3 4B</b></span>
+                    <div class="model-option selected" onclick="selectModel('MaxGPT 4.0 Ultra')">
+                        <span><b>MaxGPT 4.0 Ultra</b></span>
                         <i class="fa-solid fa-check"></i>
+                    </div>
+                    <div class="model-option" onclick="selectModel('MaxGPT 3.5 Turbo')">
+                        <span><b>MaxGPT 3.5 Turbo</b></span>
                     </div>
                 </div>
             </div>
@@ -342,7 +345,7 @@ HTML_PAGE = """<!DOCTYPE html>
                     </div>
                     <audio id="audio_initial" style="display:none;"></audio>
                 </div>
-                <div class="txt">Привет! Я <b>Gemma 3 4B</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                     <button class="action-icon-btn" onclick="startVoiceMP3(this, 'vcp_initial', 'audio_initial', 'vcp_time_initial', 'vcp_waves_initial', 'vcp_scrub_initial')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
@@ -771,7 +774,7 @@ async function startNewChat() {
                     </div>
                     <audio id="${aId}" style="display:none;"></audio>
                 </div>
-                <div class="txt">Привет! Я <b>Gemma 3 4B</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                     <button class="action-icon-btn" onclick="startVoiceMP3(this, '${pId}', '${aId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
@@ -835,7 +838,7 @@ async function fetchMessages() {
                     </div>
                     <audio id="${aId}" style="display:none;"></audio>
                 </div>
-                <div class="txt">Привет! Я <b>Gemma 3 4B</b>. Чем я могу помочь тебе сегодня?</div>
+                <div class="txt">Привет! Я <b>MaxGPT 4.0 Ultra</b>. Чем я могу помочь тебе сегодня?</div>
                 <div class="bot-actions">
                     <button class="action-icon-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i> Копировать</button>
                     <button class="action-icon-btn" onclick="startVoiceMP3(this, '${pId}', '${aId}', '${tId}', '${wId}', '${sId}')"><i class="fa-solid fa-volume-high"></i> Озвучить</button>
@@ -1444,7 +1447,7 @@ def chat_api():
 
         reply = ""
         system_prompt = (
-            "Ты — Gemma 3 (модель на 4B параметров), умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
+            "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
             "ПРАВИЛА И ХАРАКТЕР:\n"
             "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
             "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россия (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
