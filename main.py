@@ -361,9 +361,9 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button class="preview-remove" onclick="removeImage()" title="Удалить файл"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="input-row">
-                <!-- Убран принудительный capture, теперь телефон сам спросит: галерея или камера -->
+                <!-- Убран capture, теперь телефон сам вызовет системное меню (Камера / Галерея / Файлы) в зависимости от ОС -->
                 <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
-                <button class="attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="Прикрепить изображение"><i class="fa-solid fa-paperclip"></i></button>
+                <button class="attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="Прикрепить фото"><i class="fa-solid fa-paperclip"></i></button>
                 <textarea id="userInput" placeholder="Сообщение или вопрос к фото..." rows="1" oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
                 <button class="mic-btn" id="micBtn" onclick="toggleSpeechRecognition()" title="Голосовой ввод"><i class="fa-solid fa-microphone"></i></button>
                 <button class="send-btn" id="sendBtn" onclick="send()"><i class="fa-solid fa-arrow-up"></i></button>
