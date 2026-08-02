@@ -1409,7 +1409,7 @@ def chat_api():
         image_description = ""
 
         # ==========================================
-        # 1. ГЛАЗА: Анализируем картинку через Google Gemma 3 4B (Google API)
+        # 1. ГЛАЗА: Анализируем картинку через Google API
         # ==========================================
         if img_data:
             try:
@@ -1451,8 +1451,13 @@ def chat_api():
                 with urllib.request.urlopen(vision_req, timeout=35) as resp:
                     res_v = json.loads(resp.read().decode("utf-8"))
                     image_description = res_v["candidates"][0]["content"]["parts"][0]["text"]
+            
+            # ЭТИ СТРОКИ ВЫВЕДУТ ОШИБКУ ПРЯМО В ЧАТ!
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode("utf-8")
+                return jsonify({"reply": f"❌ Ошибка API Google Gemma (Код {e.code}): {error_body}", "chat_id": chat_id, "trigger_sound": False})
             except Exception as e:
-                image_description = f"[Ошибка анализа изображения: {str(e)}]"
+                return jsonify({"reply": f"❌ Системная ошибка Google Gemma: {str(e)}", "chat_id": chat_id, "trigger_sound": False})
 
         # Формируем финальный инпут для основного мозга (с текстом и картинкой)
         final_user_input = user_msg
