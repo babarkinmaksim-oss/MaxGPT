@@ -6,10 +6,12 @@ from datetime import datetime, timezone, timedelta
 app = Flask(__name__)
 
 # ==========================================
-# ВАШИ API КЛЮЧИ
+# ВАШИ API КЛЮЧИ (С РОТАЦИЕЙ)
 # ==========================================
-GROQ_API_KEY = "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"
-GOOGLE_API_KEY = "AQ.Ab8RN6JVrm2wJnmUlAB0Yl2cxU88e_xEKx9Y2g1_ofB_-c1WQw"
+GROQ_KEYS = [
+    "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",  # Первый ключ
+    "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"   # Второй ключ
+]
 # ==========================================
 
 all_chats = {}
@@ -1410,60 +1412,53 @@ def chat_api():
         reply = ""
 
         # ==========================================
-        # 1. ГЛАЗА: Анализируем картинку через Google API
+        # 1. ГЛАЗА: Анализируем картинку через Groq Vision (Llama 3.2 11B Vision)
         # ==========================================
         if img_data:
             try:
-                if "," in img_data:
-                    img_base64_clean = img_data.split(",")[1]
-                    img_mime = img_data.split(",")[0].split(":")[1].split(";")[0]
-                else:
-                    img_base64_clean = img_data
-                    img_mime = "image/jpeg"
-
-                google_vision_payload = {
-                    "contents": [
+                groq_key_vision = random.choice(GROQ_KEYS)
+                groq_vision_payload = {
+                    "model": "llama-3.2-11b-vision-preview",
+                    "messages": [
                         {
-                            "parts": [
-                                {"text": "Опиши подробно на русском языке, что изображено на этой картинке, какие объекты, текст или детали на ней есть."},
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Опиши подробно на русском языке, что изображено на этой картинке, какие объекты, текст или детали на ней есть."},
                                 {
-                                    "inline_data": {
-                                        "mime_type": img_mime,
-                                        "data": img_base64_clean
-                                    }
+                                    "type": "image_url",
+                                    "image_url": {"url": img_data}
                                 }
                             ]
                         }
-                    ]
+                    ],
+                    "temperature": 0.5,
+                    "max_tokens": 1024
                 }
                 
-                # Токен теперь передается правильно в заголовке, URL без ?key=
-                google_vision_url = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent"
-                
                 vision_req = urllib.request.Request(
-                    google_vision_url,
-                    data=json.dumps(google_vision_payload).encode("utf-8"),
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    data=json.dumps(groq_vision_payload).encode("utf-8"),
                     headers={
                         "Content-Type": "application/json",
-                        "Authorization": f"Bearer {GOOGLE_API_KEY}",
+                        "Authorization": f"Bearer {groq_key_vision}",
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                     },
                     method="POST"
                 )
                 with urllib.request.urlopen(vision_req, timeout=35) as resp:
                     res_v = json.loads(resp.read().decode("utf-8"))
-                    image_description = res_v["candidates"][0]["content"]["parts"][0]["text"]
+                    image_description = res_v["choices"][0]["message"]["content"]
             
             except urllib.error.HTTPError as e:
                 error_body = e.read().decode("utf-8")
-                reply = f"❌ Ошибка API Google Gemma (Код {e.code}): {error_body}"
+                reply = f"❌ Ошибка Groq Vision (Код {e.code}): {error_body}"
             except Exception as e:
-                reply = f"❌ Системная ошибка Google Gemma: {str(e)}"
+                reply = f"❌ Системная ошибка Groq Vision: {str(e)}"
 
         # ==========================================
-        # 2. МОЗГ: Генерируем ответ через Groq (если Гемма не выдала ошибку)
+        # 2. МОЗГ: Генерируем ответ через Groq
         # ==========================================
-        if not reply:  # Если ошибки не было, идем к Llama
+        if not reply:  # Если Глаза отработали без ошибки
             final_user_input = user_msg
             if image_description:
                 final_user_input = f"[Пользователь прикрепил изображение. Описание сцены от зрения ИИ: {image_description}]\nВопрос пользователя: {user_msg}"
@@ -1493,12 +1488,13 @@ def chat_api():
                 "messages": messages_payload
             }
             
+            groq_key_text = random.choice(GROQ_KEYS)
             groq_req = urllib.request.Request(
                 "https://api.groq.com/openai/v1/chat/completions",
                 data=json.dumps(groq_payload).encode("utf-8"),
                 headers={
                     "Content-Type": "application/json",
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Authorization": f"Bearer {groq_key_text}",
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                 },
                 method="POST"
@@ -1526,7 +1522,7 @@ def chat_api():
                 reply = "Запрос проанализирован. В текущих реалиях отечественные аналоги смотрятся гораздо перспективнее."
 
         # ==========================================
-        # 3. СОХРАНЯЕМ В ИСТОРИЮ (ТЕПЕРЬ СООБЩЕНИЯ НЕ БУДУТ ИСЧЕЗАТЬ!)
+        # 3. СОХРАНЯЕМ В ИСТОРИЮ
         # ==========================================
         all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": reply, "img": img_data})
         
