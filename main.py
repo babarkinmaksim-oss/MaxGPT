@@ -2,15 +2,21 @@ from flask import Flask, request, jsonify, render_template_string, send_from_dir
 import random, os, urllib.request, urllib.error, json, time, base64, io, asyncio
 import edge_tts
 from datetime import datetime, timezone, timedelta
+from google import genai
+from PIL import Image
 
 app = Flask(__name__)
 
 # ==========================================
-# ВАШИ API КЛЮЧИ (С РОТАЦИЕЙ)
+# ВАШИ API КЛЮЧИ
 # ==========================================
+# Ключ для Google Gemini (анализ картинок)
+GOOGLE_API_KEY = "AQ.Ab8RN6JVrm2wJnmUlAB0Yl2cxU88e_xEKx9Y2g1_ofB_-c1WQw"
+ai_client = genai.Client(api_key=GOOGLE_API_KEY)
+
+# Ключ для Groq (Llama 3.3 70B)
 GROQ_KEYS = [
-    "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",  # Первый ключ
-    "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"   # Второй ключ
+    "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"
 ]
 # ==========================================
 
@@ -1412,56 +1418,34 @@ def chat_api():
         reply = ""
 
         # ==========================================
-        # 1. ГЛАЗА: Анализируем картинку через Groq Vision (Llama 3.2 90B Vision)
+        # 1. ГЛАЗА: Анализируем картинку через Google Gemini API
         # ==========================================
         if img_data:
             try:
-                groq_key_vision = random.choice(GROQ_KEYS)
-                groq_vision_payload = {
-                    "model": "llama-3.2-90b-vision-preview",
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": "Опиши подробно на русском языке, что изображено на этой картинке, какие объекты, текст или детали на ней есть."},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": img_data}
-                                }
-                            ]
-                        }
-                    ],
-                    "temperature": 0.5,
-                    "max_tokens": 1024
-                }
-                
-                vision_req = urllib.request.Request(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    data=json.dumps(groq_vision_payload).encode("utf-8"),
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {groq_key_vision}",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                    },
-                    method="POST"
+                header, encoded = img_data.split(",", 1)
+                image_bytes = base64.b64decode(encoded)
+                pil_image = Image.open(io.BytesIO(image_bytes))
+
+                # Используем быструю и эффективную мультимодальную модель от Google
+                gemini_response = ai_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=[
+                        pil_image, 
+                        "Опиши подробно на русском языке, что изображено на этой картинке, какие объекты, текст или детали на ней есть."
+                    ]
                 )
-                with urllib.request.urlopen(vision_req, timeout=35) as resp:
-                    res_v = json.loads(resp.read().decode("utf-8"))
-                    image_description = res_v["choices"][0]["message"]["content"]
+                image_description = gemini_response.text
             
-            except urllib.error.HTTPError as e:
-                error_body = e.read().decode("utf-8")
-                reply = f"❌ Ошибка Groq Vision (Код {e.code}): {error_body}"
             except Exception as e:
-                reply = f"❌ Системная ошибка Groq Vision: {str(e)}"
+                reply = f"❌ Ошибка Gemini Vision: {str(e)}"
 
         # ==========================================
-        # 2. МОЗГ: Генерируем ответ через Groq
+        # 2. МОЗГ: Генерируем ответ через Llama 3.3 70B (Groq)
         # ==========================================
-        if not reply:  # Если Глаза отработали без ошибки
+        if not reply:  
             final_user_input = user_msg
             if image_description:
-                final_user_input = f"[Пользователь прикрепил изображение. Описание сцены от зрения ИИ: {image_description}]\nВопрос пользователя: {user_msg}"
+                final_user_input = f"[Пользователь прикрепил изображение. Описание сцены от Gemini: {image_description}]\nВопрос пользователя: {user_msg}"
             if not final_user_input.strip():
                 final_user_input = "Посмотри на описание прикрепленного изображения и расскажи мне про него."
 
