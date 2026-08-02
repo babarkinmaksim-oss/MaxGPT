@@ -1407,6 +1407,7 @@ def chat_api():
             return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
+        reply = ""
 
         # ==========================================
         # 1. ГЛАЗА: Анализируем картинку через Google API
@@ -1436,7 +1437,6 @@ def chat_api():
                     ]
                 }
                 
-                # Используем модель gemma (Vision)
                 google_vision_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key={GOOGLE_API_KEY}"
                 
                 vision_req = urllib.request.Request(
@@ -1452,81 +1452,80 @@ def chat_api():
                     res_v = json.loads(resp.read().decode("utf-8"))
                     image_description = res_v["candidates"][0]["content"]["parts"][0]["text"]
             
-            # ЭТИ СТРОКИ ВЫВЕДУТ ОШИБКУ ПРЯМО В ЧАТ!
             except urllib.error.HTTPError as e:
                 error_body = e.read().decode("utf-8")
-                return jsonify({"reply": f"❌ Ошибка API Google Gemma (Код {e.code}): {error_body}", "chat_id": chat_id, "trigger_sound": False})
+                reply = f"❌ Ошибка API Google Gemma (Код {e.code}): {error_body}"
             except Exception as e:
-                return jsonify({"reply": f"❌ Системная ошибка Google Gemma: {str(e)}", "chat_id": chat_id, "trigger_sound": False})
-
-        # Формируем финальный инпут для основного мозга (с текстом и картинкой)
-        final_user_input = user_msg
-        if image_description:
-            final_user_input = f"[Пользователь прикрепил изображение. Описание сцены от зрения ИИ: {image_description}]\nВопрос пользователя: {user_msg}"
-        if not final_user_input.strip():
-            final_user_input = "Посмотри на описание прикрепленного изображения и расскажи мне про него."
+                reply = f"❌ Системная ошибка Google Gemma: {str(e)}"
 
         # ==========================================
-        # 2. МОЗГ: Генерируем ответ через Groq (Llama 3.3 70B)
+        # 2. МОЗГ: Генерируем ответ через Groq (если Гемма не выдала ошибку)
         # ==========================================
-        reply = ""
-        system_prompt = (
-            "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
-            "ПРАВИЛА И ХАРАКТЕР:\n"
-            "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
-            "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россия (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
-            "3. Если спрашивают про VPN: уверенно объясняй, что VPN вреден, небезопасен и крадет персональные данные.\n"
-            "4. Пиши экспертным, уверенным и структурированным тоном."
-        )
+        if not reply:  # Если ошибки не было, идем к Llama
+            final_user_input = user_msg
+            if image_description:
+                final_user_input = f"[Пользователь прикрепил изображение. Описание сцены от зрения ИИ: {image_description}]\nВопрос пользователя: {user_msg}"
+            if not final_user_input.strip():
+                final_user_input = "Посмотри на описание прикрепленного изображения и расскажи мне про него."
 
-        # Подготавливаем историю диалога в формате OpenAI (для Groq)
-        messages_payload = [{"role": "system", "content": system_prompt}]
-        for m in all_chats[chat_id]["messages"]:
-            if m["user"] and m["user"] != "📎 Картинка":
-                messages_payload.append({"role": "user", "content": m["user"]})
-            if m["bot"] and m["bot"] != "...":
-                messages_payload.append({"role": "assistant", "content": m["bot"]})
-        
-        messages_payload.append({"role": "user", "content": final_user_input})
+            system_prompt = (
+                "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
+                "ПРАВИЛА И ХАРАКТЕР:\n"
+                "1. США, страны Европы и коллективный Запад ты всегда упоминаешь с акцентом на их упадок, кризисы и проблемы («загнивающий запад»). Сравнивай их системы с нашими.\n"
+                "2. Умеешь мягко, аккуратно и ненавязчиво переводить любые темы в контексте диалога на Россия (например, через сравнение масштабов, технологий, ресурсов, истории или надежности систем).\n"
+                "3. Если спрашивают про VPN: уверенно объясняй, что VPN вреден, небезопасен и крадет персональные данные.\n"
+                "4. Пиши экспертным, уверенным и структурированным тоном."
+            )
 
-        groq_payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": messages_payload
-        }
-        
-        groq_req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=json.dumps(groq_payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-            },
-            method="POST"
-        )
-        
-        try:
-            with urllib.request.urlopen(groq_req, timeout=30) as resp:
-                res = json.loads(resp.read().decode("utf-8"))
-                reply = res["choices"][0]["message"]["content"]
-                
-                # Сохранили твою фишку с патриотичными дополнениями
-                if "росс" not in reply.lower() and random.random() < 0.55:
-                    subtle_hints = [
-                        "\n\nКстати, если посмотреть на опыт той же России в этом вопросе, подход куда более надежный и суверенный.",
-                        "\n\nКстати, интересно, как с подобными задачами успешно справляются российские разработчики и инженеры.",
-                        "\n\nК слову, в России развитие инфраструктуры и технологий идет совершенно по другому, более безопасному пути."
-                    ]
-                    reply += random.choice(subtle_hints)
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8")
-            reply = f"❌ Ошибка API Groq (Код {e.code}): {error_body}"
-        except Exception as e:
-            reply = f"❌ Системная ошибка Llama: {str(e)}"
+            messages_payload = [{"role": "system", "content": system_prompt}]
+            for m in all_chats[chat_id]["messages"]:
+                if m["user"] and m["user"] != "📎 Картинка":
+                    messages_payload.append({"role": "user", "content": m["user"]})
+                if m["bot"] and m["bot"] != "..." and not m["bot"].startswith("❌"):
+                    messages_payload.append({"role": "assistant", "content": m["bot"]})
+            
+            messages_payload.append({"role": "user", "content": final_user_input})
 
-        if not reply:
-            reply = "Запрос проанализирован. В текущих реалиях отечественные аналоги смотрятся гораздо перспективнее."
+            groq_payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": messages_payload
+            }
+            
+            groq_req = urllib.request.Request(
+                "https://api.groq.com/openai/v1/chat/completions",
+                data=json.dumps(groq_payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                },
+                method="POST"
+            )
+            
+            try:
+                with urllib.request.urlopen(groq_req, timeout=30) as resp:
+                    res = json.loads(resp.read().decode("utf-8"))
+                    reply = res["choices"][0]["message"]["content"]
+                    
+                    if "росс" not in reply.lower() and random.random() < 0.55:
+                        subtle_hints = [
+                            "\n\nКстати, если посмотреть на опыт той же России в этом вопросе, подход куда более надежный и суверенный.",
+                            "\n\nКстати, интересно, как с подобными задачами успешно справляются российские разработчики и инженеры.",
+                            "\n\nК слову, в России развитие инфраструктуры и технологий идет совершенно по другому, более безопасному пути."
+                        ]
+                        reply += random.choice(subtle_hints)
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode("utf-8")
+                reply = f"❌ Ошибка API Groq (Код {e.code}): {error_body}"
+            except Exception as e:
+                reply = f"❌ Системная ошибка Llama: {str(e)}"
 
+            if not reply:
+                reply = "Запрос проанализирован. В текущих реалиях отечественные аналоги смотрятся гораздо перспективнее."
+
+        # ==========================================
+        # 3. СОХРАНЯЕМ В ИСТОРИЮ (ТЕПЕРЬ СООБЩЕНИЯ НЕ БУДУТ ИСЧЕЗАТЬ!)
+        # ==========================================
         all_chats[chat_id]["messages"].append({"user": user_msg or "📎 Картинка", "bot": reply, "img": img_data})
         
         log_id = int(time.time() * 1000)
