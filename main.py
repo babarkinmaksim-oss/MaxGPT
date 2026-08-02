@@ -1412,13 +1412,13 @@ def chat_api():
         reply = ""
 
         # ==========================================
-        # 1. ГЛАЗА: Анализируем картинку через Groq Vision (Llama 3.2 11B Vision)
+        # 1. ГЛАЗА: Анализируем картинку через Groq Vision (Llama 3.2 90B Vision)
         # ==========================================
         if img_data:
             try:
                 groq_key_vision = random.choice(GROQ_KEYS)
                 groq_vision_payload = {
-                    "model": "llama-3.2-11b-vision-preview",
+                    "model": "llama-3.2-90b-vision-preview",
                     "messages": [
                         {
                             "role": "user",
