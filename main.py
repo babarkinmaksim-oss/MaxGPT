@@ -1437,13 +1437,15 @@ def chat_api():
                     ]
                 }
                 
-                google_vision_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key={GOOGLE_API_KEY}"
+                # Токен теперь передается правильно в заголовке, URL без ?key=
+                google_vision_url = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent"
                 
                 vision_req = urllib.request.Request(
                     google_vision_url,
                     data=json.dumps(google_vision_payload).encode("utf-8"),
                     headers={
                         "Content-Type": "application/json",
+                        "Authorization": f"Bearer {GOOGLE_API_KEY}",
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                     },
                     method="POST"
