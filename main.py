@@ -1442,7 +1442,10 @@ def chat_api():
                 vision_req = urllib.request.Request(
                     google_vision_url,
                     data=json.dumps(google_vision_payload).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                    },
                     method="POST"
                 )
                 with urllib.request.urlopen(vision_req, timeout=35) as resp:
@@ -1491,7 +1494,8 @@ def chat_api():
             data=json.dumps(groq_payload).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {GROQ_API_KEY}"
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
             },
             method="POST"
         )
