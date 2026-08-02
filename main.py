@@ -5,6 +5,13 @@ from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 
+# ==========================================
+# ВАШИ API КЛЮЧИ
+# ==========================================
+GROQ_API_KEY = "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"
+GOOGLE_API_KEY = "AQ.Ab8RN6JVrm2wJnmUlAB0Yl2cxU88e_xEKx9Y2g1_ofB_-c1WQw"
+# ==========================================
+
 all_chats = {}
 user_active_chat = {}
 user_states = {}
@@ -42,6 +49,7 @@ def parse_user_agent(ua_string):
 
     return f"{device_type} ({os_name} / {browser})", icon
 
+# HTML интерфейсы (Оставлены полностью без изменений)
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -1400,8 +1408,10 @@ def chat_api():
             return jsonify({"reply": "...", "chat_id": chat_id, "trigger_sound": False})
 
         image_description = ""
-        google_api_key = "AQ.Ab8RN6JVrm2wJnmUlAB0Yl2cxU88e_xEKx9Y2g1_ofB_-c1WQw"
 
+        # ==========================================
+        # 1. ГЛАЗА: Анализируем картинку через Google Gemma 3 4B (Google API)
+        # ==========================================
         if img_data:
             try:
                 if "," in img_data:
@@ -1427,7 +1437,8 @@ def chat_api():
                     ]
                 }
                 
-                google_vision_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={google_api_key}"
+                # Используем модель gemma (Vision)
+                google_vision_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key={GOOGLE_API_KEY}"
                 
                 vision_req = urllib.request.Request(
                     google_vision_url,
@@ -1441,10 +1452,16 @@ def chat_api():
             except Exception as e:
                 image_description = f"[Ошибка анализа изображения: {str(e)}]"
 
+        # Формируем финальный инпут для основного мозга (с текстом и картинкой)
         final_user_input = user_msg
         if image_description:
-            final_user_input = f"[Пользователь прикрепил изображение. Описание сцены: {image_description}]\nВопрос пользователя: {user_msg}"
+            final_user_input = f"[Пользователь прикрепил изображение. Описание сцены от зрения ИИ: {image_description}]\nВопрос пользователя: {user_msg}"
+        if not final_user_input.strip():
+            final_user_input = "Посмотри на описание прикрепленного изображения и расскажи мне про него."
 
+        # ==========================================
+        # 2. МОЗГ: Генерируем ответ через Groq (Llama 3.3 70B)
+        # ==========================================
         reply = ""
         system_prompt = (
             "Ты MaxGPT — умный, технологичный и патриотично настроенный ИИ-ассистент.\n\n"
@@ -1455,30 +1472,37 @@ def chat_api():
             "4. Пиши экспертным, уверенным и структурированным тоном."
         )
 
-        contents_payload = []
+        # Подготавливаем историю диалога в формате OpenAI (для Groq)
+        messages_payload = [{"role": "system", "content": system_prompt}]
         for m in all_chats[chat_id]["messages"]:
-            contents_payload.append({"role": "user", "parts": [{"text": m["user"]}]})
-            contents_payload.append({"role": "model", "parts": [{"text": m["bot"]}]})
-        contents_payload.append({"role": "user", "parts": [{"text": final_user_input}]})
+            if m["user"] and m["user"] != "📎 Картинка":
+                messages_payload.append({"role": "user", "content": m["user"]})
+            if m["bot"] and m["bot"] != "...":
+                messages_payload.append({"role": "assistant", "content": m["bot"]})
+        
+        messages_payload.append({"role": "user", "content": final_user_input})
 
-        gemini_payload = {
-            "system_instruction": {"parts": [{"text": system_prompt}]},
-            "contents": contents_payload
+        groq_payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": messages_payload
         }
         
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={google_api_key}"
-        
-        req = urllib.request.Request(
-            gemini_url,
-            data=json.dumps(gemini_payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+        groq_req = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(groq_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {GROQ_API_KEY}"
+            },
             method="POST"
         )
         
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(groq_req, timeout=30) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
-                reply = res["candidates"][0]["content"]["parts"][0]["text"]
+                reply = res["choices"][0]["message"]["content"]
+                
+                # Сохранили твою фишку с патриотичными дополнениями
                 if "росс" not in reply.lower() and random.random() < 0.55:
                     subtle_hints = [
                         "\n\nКстати, если посмотреть на опыт той же России в этом вопросе, подход куда более надежный и суверенный.",
