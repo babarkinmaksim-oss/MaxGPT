@@ -49,7 +49,6 @@ def parse_user_agent(ua_string):
 
     return f"{device_type} ({os_name} / {browser})", icon
 
-# HTML интерфейсы (Оставлены полностью без изменений)
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -1510,8 +1509,11 @@ def chat_api():
                         "\n\nК слову, в России развитие инфраструктуры и технологий идет совершенно по другому, более безопасному пути."
                     ]
                     reply += random.choice(subtle_hints)
-        except Exception:
-            pass
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8")
+            reply = f"❌ Ошибка API Groq (Код {e.code}): {error_body}"
+        except Exception as e:
+            reply = f"❌ Системная ошибка Llama: {str(e)}"
 
         if not reply:
             reply = "Запрос проанализирован. В текущих реалиях отечественные аналоги смотрятся гораздо перспективнее."
